@@ -1,0 +1,21 @@
+{
+  "name": "wplace-sussymarble",
+  "version": "1.0.0",
+  "type": "module",
+  "homepage": "https://github.com/smelbravo/Wplace-SussyMarble",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smelbravo/Wplace-SussyMarble.git"
+  },
+  "scripts": {
+    "build": "node build/build.js",
+    "patch": "node build/patch.js && npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "jsdoc": "^4.0.5",
+    "minami": "^1.2.3",
+    "terser": "^5.43.1"
+  },
+  "description": "Sussy Marble - alliance fork of Blue Marble for Wplace.live"
+}

@@ -1,0 +1,207 @@
+/* Sussy Marble additions. @since 1.0.0 */
+
+/* Progress bars (top of the screen + main window) */
+.bm-progress-top {
+  position: fixed;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 150px));
+  height: 22px;
+  background-color: rgba(52, 10, 16, 0.85);
+  border: 1px solid rgba(255, 90, 102, 0.7);
+  border-radius: 11px;
+  overflow: hidden;
+  z-index: 8999; /* Under every Sussy Marble window (9000+) */
+  pointer-events: none;
+  font-family: 'Roboto Mono', 'Courier New', 'Monaco', 'DejaVu Sans Mono', monospace, 'Arial';
+  font-size: 11px;
+  color: white;
+}
+
+.bm-progress-top[hidden], .bm-mini-progress[hidden] {
+  display: none;
+}
+
+.bm-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: linear-gradient(90deg, #b3141f, #ff5a66);
+  transition: width 0.6s ease;
+}
+
+.bm-progress-text {
+  position: relative;
+  display: block;
+  text-align: center;
+  line-height: 22px;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+  white-space: nowrap;
+}
+
+.bm-mini-progress {
+  position: relative;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 11px;
+}
+
+.bm-mini-progress .bm-progress-text {
+  line-height: 20px;
+}
+
+/* Extra windows (search, pixel finder) */
+.bm-window.bm-window-sussy {
+  width: 330px;
+  max-width: calc(100% - 20px);
+}
+
+.bm-window-sussy .bm-sussy-title {
+  font-size: 1.1em;
+  margin: 0;
+  text-align: center;
+}
+
+.bm-window-sussy .bm-window-content {
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+}
+
+.bm-window-sussy h2 {
+  font-size: 1em;
+  margin: 0.4em 0;
+}
+
+.bm-sussy-row {
+  display: flex;
+  gap: 0.5ch;
+  align-items: center;
+  margin: 0.3em 0;
+}
+
+.bm-sussy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  margin: 0.3em 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.bm-sussy-input, .bm-window input[type="text"].bm-sussy-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3em 0.5em;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background-color: rgba(0, 0, 0, 0.3);
+  color: white;
+  font: inherit;
+}
+
+.bm-window button.bm-sussy-go {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bm-sussy-status {
+  display: block;
+  opacity: 0.85;
+  overflow-wrap: anywhere;
+}
+
+/* Alliance branding */
+.bm-alliance-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.bm-alliance-logo {
+  height: 42px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+  margin: 4px auto;
+}
+
+/* ===== Mobile mode (class `bm-mobile` on <html>) ===== */
+html.bm-mobile .bm-window,
+html.bm-mobile .bm-window.bm-windowed {
+  max-width: calc(100vw - 12px);
+  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  left: 6px;
+  top: 60px;
+  padding: 8px;
+  font-size: 15px;
+}
+
+html.bm-mobile .bm-window.bm-window-sussy {
+  width: calc(100vw - 12px);
+}
+
+html.bm-mobile .bm-dragbar {
+  min-height: 42px;
+  touch-action: none;
+}
+
+html.bm-mobile .bm-window button {
+  min-height: 40px;
+}
+
+html.bm-mobile .bm-window .bm-button-circle {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  font-size: 18px;
+}
+
+html.bm-mobile .bm-window input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+html.bm-mobile .bm-window select,
+html.bm-mobile .bm-window textarea {
+  font-size: 16px; /* Also stops mobile browsers from zooming into the field */
+  min-height: 40px;
+}
+
+html.bm-mobile .bm-window input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+}
+
+html.bm-mobile .bm-window label {
+  padding: 4px 0;
+}
+
+html.bm-mobile .bm-window-sussy .bm-window-content {
+  max-height: calc(100dvh - 160px);
+}
+
+html.bm-mobile .bm-progress-top {
+  height: 18px;
+  top: 4px;
+  width: calc(100% - 130px);
+  font-size: 10px;
+}
+
+html.bm-mobile .bm-progress-text {
+  line-height: 18px;
+}
+
+html.bm-mobile .bm-alliance-logo {
+  height: 34px;
+}
