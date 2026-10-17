@@ -1,10 +1,10 @@
-# Créditos
+# Credits
 
-Sussy Marble é um trabalho derivado, sob MPL-2.0, de:
+Sussy Marble is a derivative work, under MPL-2.0, of:
 
-- **Blue Marble** – SwingTheVine e contribuidores: https://github.com/SwingTheVine/Wplace-BlueMarble
-- **Skirk Marble** – Seris0 (que por sua vez agradece a pixelkat5 / Wplace-Red-planet, Hao-1337 / Wplace-BM e CloudBurst): https://github.com/Seris0/Wplace-SkirkMarble
-- **Wplace-BlueMarble-Userscripts** (branches `main` e `custom-improve`) – t-wy, com contribuições de due2e, Commenter25, ajbjc e Nooko331 (ideias): https://github.com/t-wy/Wplace-BlueMarble-Userscripts
+- **Blue Marble** by SwingTheVine and contributors: https://github.com/SwingTheVine/Wplace-BlueMarble
+- **Skirk Marble** by Seris0 (who in turn thanks pixelkat5 / Wplace-Red-planet, Hao-1337 / Wplace-BM and CloudBurst): https://github.com/Seris0/Wplace-SkirkMarble
+- **Wplace-BlueMarble-Userscripts** (`main` and `custom-improve` branches) by t-wy, with ideas contributed by due2e, Commenter25, ajbjc and Nooko331: https://github.com/t-wy/Wplace-BlueMarble-Userscripts
 
-O nome e ícone "Blue Marble" pertencem aos autores originais. O símbolo e o logo do Sussy Squad pertencem à aliança Sussy Squad.
-Alterações do Sussy Marble: ver `README.md` (secção *Features novas*).
+The "Blue Marble" name and icon belong to the original authors. The Sussy Squad symbol and logo belong to the Sussy Squad alliance.
+For what Sussy Marble adds, see the *Features* section of `README.md`.
