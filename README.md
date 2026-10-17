@@ -1,64 +1,80 @@
 # 🔴 Sussy Marble — Sussy Squad
 
-**Sussy Marble** é um fork do [Blue Marble](https://github.com/SwingTheVine/Wplace-BlueMarble) para o [Wplace.live](https://wplace.live), estilizado para a nossa aliança e com features extra vindas de dois forks:
+**Sussy Marble** is a fork of [Blue Marble](https://github.com/SwingTheVine/Wplace-BlueMarble) for [Wplace.live](https://wplace.live), styled for the Sussy Squad alliance and packed with extra features from two other forks.
 
-| Origem | O que veio de lá |
+| Source | What came from it |
 |---|---|
-| **Blue Marble** (SwingTheVine) – base v0.95.0 | Overlay de templates, filtro de cores, highlight de pixels, assistente de templates, janelas, definições |
-| **Skirk Marble** (Seris0) | Error map, barras de progresso, pesquisa de localizações + favoritos, listas de pixels errados/em falta, conceito da cache de tiles |
-| **Userscripts fork** (t-wy, branch `custom-improve`) | Deteção fiável do mapa, vários templates, renomear templates, refresh automático dos tiles, pan com WASD, botões de zoom, coordenadas geográficas, teleporte por cor, compatibilidade Userscripts/bookmarklet, fallback de `OffscreenCanvas` |
+| **Blue Marble** (SwingTheVine), base v0.95.0 | Template overlay, color filter, pixel highlight, template wizard, windows, settings |
+| **Skirk Marble** (Seris0) | Error map, progress bars, location search and favorites, wrong/missing pixel lists, the tile cache concept |
+| **Userscripts fork** (t-wy, `custom-improve` branch) | Reliable map detection, multiple templates, template renaming, automatic tile refresh, WASD panning, zoom buttons, geographic coordinates, per-color teleport, Userscripts app and bookmarklet support, `OffscreenCanvas` fallback |
 
-## Features novas
+## Install
 
-- 🟥 **Error map** – pixels errados a vermelho, em falta a amarelo, certos com um ponto verde (Definições → *Sussy Marble*). Respeita o filtro de cores.
-- 📊 **Barra de progresso** no topo do ecrã e mini-barra na janela principal (com ETA no tooltip).
-- 🔍 **Pesquisa de localizações** (OpenStreetMap/Nominatim), **favoritos** guardados, **ir para coordenadas** (`Tl X, Tl Y, Px X, Px Y` ou `lat, lng`), **ir para o canto do template**.
-- 🎯 **Pixel Finder** – lista os pixels errados / em falta dos tiles carregados (os mais próximos do último pixel clicado primeiro) e voa até eles.
-- ⚡ **Cache inteligente de tiles** – só reprocessa um tile se o canvas ou alguma definição mudou (chave por hash do conteúdo, nunca mostra tiles velhos).
-- 📚 **Vários templates ao mesmo tempo**, com janela para renomear (clica no nome), ir ao canto e apagar.
-- 🎯 **Botão em cada cor do filtro** que voa para o pixel por pintar mais próximo dessa cor.
-- 🔄 **Refresh automático dos tiles** quando mudas definições, cores ou templates (sem mexer no mapa).
-- ⌨️ **WASD** para mover o mapa (opcional, Definições), **botões de zoom** 1x–10x (janela 🔍) e **Lat/Lng** junto às coordenadas do pixel (clica para copiar).
-- 📱 **Modo mobile** (Definições → *Sussy Marble*): botões maiores, janelas que cabem no ecrã, cache mais leve. Liga-se sozinho em ecrãs táteis na primeira execução (feito a pensar em Firefox Android + Tampermonkey).
-- 🌈 **Filtro de cores:** ordenar por tom ou brilho e esconder as cores já terminadas.
-- ⛔ **Suspensão:** contagem decrescente e motivo na janela principal quando a conta está suspensa.
-- 📷 **Exportar o canvas** (janela 📚): PNG exato da área do template, ou entre dois cantos.
-- 🏷️ **Nome da aliança** configurável (Definições → *Sussy Marble*).
-- 🔖 **Bookmarklet** (`dist/SussyMarble.bookmarklet.js`) para quem não usa gestor de userscripts.
-- 🔒 **Sem telemetria.** O código de telemetria do original foi removido. O script **não pinta pixels por ti**.
+You need a userscript manager (Tampermonkey, Violentmonkey...). Open the link and confirm the installation:
 
-## Instalar
+**[➡️ Install Sussy Marble](https://raw.githubusercontent.com/smelbravo/Wplace-SussyMarble/main/dist/SussyMarble.user.js)**
 
-Precisas de um gestor de userscripts (Tampermonkey, Violentmonkey…). Abre o link e confirma a instalação:
+- The file ends in `.user.js` (not `.json`). That is what makes the userscript manager show the install button.
+- **Firefox for Android + Tampermonkey:** if the link does not open the installer, open Tampermonkey → *Utilities* → *Install from URL* and paste the link above.
+- **Safari / Userscripts app:** use `dist/SussyMarble-Standalone.user.js`.
+- **No userscript manager:** use the bookmarklet in `dist/SussyMarble.bookmarklet.min.js`.
+- Updates arrive automatically when a new version is published (see below).
 
-**[➡️ Instalar Sussy Marble](https://raw.githubusercontent.com/smelbravo/Wplace-SussyMarble/main/dist/SussyMarble.user.js)**
+## Features
 
-- O ficheiro termina em `.user.js` (não é `.json`): é isso que faz o gestor mostrar o botão de instalar.
-- **Firefox Android + Tampermonkey:** se o link não abrir o instalador, abre o Tampermonkey → *Utilitários* → *Instalar a partir de URL* e cola o link acima.
-- **Safari / app Userscripts:** usa `dist/SussyMarble-Standalone.user.js`.
-- **Sem gestor:** bookmarklet em `dist/SussyMarble.bookmarklet.min.js`.
-- As atualizações chegam sozinhas quando subires a versão (ver abaixo).
+**Error map and progress**
+- 🟥 **Error map:** wrong pixels in red, missing pixels in yellow, correct pixels with an optional green dot (Settings → *Sussy Marble*). Respects the color filter.
+- 📊 **Progress bar** at the top of the screen and a mini bar in the main window, with an estimated finish time in the tooltip.
+- 🎯 **Pixel Finder:** lists the wrong and missing pixels of the loaded tiles and flies to them (nearest to your last clicked pixel first).
+- 🎯 **Per-color button in the filter:** jumps to the nearest unfinished pixel of that color.
+- 🌈 **Color filter:** sort by hue or brightness, and hide finished colors.
 
-## Atualizar
+**Navigation**
+- 🔍 **Location search** (OpenStreetMap/Nominatim) and saved **favorites**.
+- **Go to coordinates** (`Tl X, Tl Y, Px X, Px Y` or `lat, lng`) and **go to template corner**.
+- 🔎 **Zoom buttons** (1x to 10x screen pixels per Wplace pixel).
+- ⌨️ **WASD** map panning (optional, in Settings).
+- 🌍 **Lat/Lng** shown next to the pixel coordinates (click to copy).
 
-1. Muda `version` em `src/SussyMarble.meta.js` e em `package.json`.
-2. `npm run build`
-3. Faz commit da pasta `dist/` e dá push. O Tampermonkey atualiza sozinho (ou: *Verificar atualizações*).
+**Templates and performance**
+- 📚 **Multiple templates at once**, with a window to rename (click the name), go to the corner, and remove.
+- 🔄 **Automatic tile refresh** when you change settings, colors or templates (no need to move the map).
+- ⚡ **Smart tile cache:** a tile is only reprocessed when the canvas or a setting changed (keyed by content hash, never shows stale tiles).
+- 📷 **Export the live canvas as a PNG:** the template area, or between two corners.
 
-## Compilar
+**Mobile and account**
+- 📱 **Mobile mode:** bigger buttons, windows that fit the screen, lighter cache. Turns on automatically on touch screens the first time it runs.
+- ⛔ **Suspension countdown** and reason in the main window when the account is suspended.
+- 🔖 **Bookmarklet** and Userscripts app support, plus an `OffscreenCanvas` fallback for older browsers.
+
+**Alliance and privacy**
+- 🏷️ Sussy Squad symbol, logo and a configurable alliance name (Settings → *Sussy Marble*).
+- 🔒 **No telemetry.** The original's telemetry code was removed. The script **never places pixels for you**.
+
+## Update
+
+1. Change `version` in `src/SussyMarble.meta.js` and in `package.json`.
+2. Run `npm run build`.
+3. Commit the `dist/` folder and push. Tampermonkey updates on its own (or use *Check for updates*).
+
+## Build
 
 ```bash
 npm install
-npm run build      # gera dist/SussyMarble*.js
+npm run build      # creates dist/SussyMarble*.js
 ```
 
-## Notas técnicas
+## Branding
 
-- A minificação **não** muda nomes de propriedades (o original fazia-o); assim as definições guardadas mantêm as chaves entre versões.
-- Navegação no mapa: o script obtém a instância do mapa pelo botão "My location" do Wplace (técnica do fork do t-wy) e só aceita uma lista fixa de comandos. Se o Wplace mudar isso e o mapa não for encontrado, abre `?lat=&lng=&zoom=` por URL (recarrega a página).
-- Só os tiles carregados são analisados: percorre o template no mapa para o Pixel Finder e a barra de progresso ficarem completos.
+The alliance name (default *Sussy Squad*), symbol and logo live in `src/branding.js`. The original images are in `dist/assets/`.
 
-## Licença e créditos
+## Technical notes
 
-[MPL-2.0](LICENSE.txt), como o Blue Marble, o Skirk Marble e o fork Userscripts. Ver [CREDITS.md](docs/CREDITS.md).
-Não afiliado ao Wplace.live. Usa por tua conta e risco.
+- Minification does **not** rename object properties (the original did), so saved settings keep the same keys between versions.
+- Map control: the script finds the map instance through Wplace's own "My location" button (technique from the t-wy fork) and only accepts a fixed list of commands. If Wplace changes this and the map cannot be found, locations open through a `?lat=&lng=&zoom=` URL instead (this reloads the page).
+- Only loaded tiles are analyzed. Pan across your template so the Pixel Finder and the progress bar become complete.
+
+## License and credits
+
+[MPL-2.0](LICENSE.txt), like Blue Marble, Skirk Marble and the Userscripts fork. See [CREDITS.md](docs/CREDITS.md).
+Not affiliated with Wplace.live. Use at your own risk.
