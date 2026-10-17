@@ -13,11 +13,8 @@ import WindowCredits from './WindowCredits.js';
 import WindowWizard from './WindowWizard.js';
 import WindowFilter from './WindowFilter.js';
 import ProgressTracker from './ProgressTracker.js';
-import WindowSearch from './WindowSearch.js';
-import WindowFinder from './WindowFinder.js';
 import { startKeyboardPan } from './keyboardPan.js';
 import { initMobileMode } from './mobileMode.js';
-import { BRAND } from './branding.js';
 
 const name = GM_info.script.name.toString(); // Name of userscript
 const version = GM_info.script.version.toString(); // Version of userscript

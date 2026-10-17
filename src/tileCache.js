@@ -94,3 +94,49 @@ export default class TileCache {
     return {entries: this.entries.size, megabytes: (this.bytes / 1048576).toFixed(1), hits: this.hits, misses: this.misses};
   }
 }
+
+/** Runs async tasks one (or a few) at a time, giving the browser a moment to breathe between tasks.
+ * Used so that many tiles arriving together do not all allocate their ~100 MB of temporary memory at once.
+ * @since 1.0.0
+ */
+export class TaskQueue {
+
+  /**
+   * @param {number} [concurrency=1] - How many tasks may run at the same time
+   * @param {number} [slotTimeoutMs=30000] - A task that runs longer than this frees its slot so one stuck render can never block every other tile
+   */
+  constructor(concurrency = 1, slotTimeoutMs = 30000) {
+    this.concurrency = concurrency;
+    this.slotTimeoutMs = slotTimeoutMs;
+    this.running = 0;
+    this.waiting = [];
+  }
+
+  /** Queues a task.
+   * @param {() => Promise<*>} task - The task
+   * @returns {Promise<*>} Resolves/rejects with the task's result
+   */
+  run(task) {
+    return new Promise((resolve, reject) => {
+      this.waiting.push({task, resolve, reject});
+      this.#next();
+    });
+  }
+
+  #next() {
+    while ((this.running < this.concurrency) && this.waiting.length) {
+      const {task, resolve, reject} = this.waiting.shift();
+      this.running++;
+      let released = false;
+      const release = () => {
+        if (released) {return;}
+        released = true;
+        clearTimeout(watchdog);
+        this.running--;
+        setTimeout(() => this.#next(), 0); // Let the page paint / handle input between two heavy renders
+      };
+      const watchdog = setTimeout(release, this.slotTimeoutMs);
+      Promise.resolve().then(task).then(resolve, reject).finally(release);
+    }
+  }
+}

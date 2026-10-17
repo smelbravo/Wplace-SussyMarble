@@ -25,6 +25,31 @@ export function nearestPixel(pixels, reference) {
   return best;
 }
 
+/** Returns the `count` pixels closest to a reference position, nearest first, in a single pass
+ * (no sorting of the whole list, which can hold hundreds of thousands of pixels).
+ * Without a reference, the first `count` pixels are returned.
+ * @param {Array<{tileX: number, tileY: number, pixelX: number, pixelY: number}>} pixels - Candidate pixels
+ * @param {number[]} [reference] - [tileX, tileY, pixelX, pixelY]
+ * @param {number} [count=40] - How many pixels to return
+ */
+export function nearestPixels(pixels, reference, count = 40) {
+  if (reference?.length !== 4) {return pixels.slice(0, count);}
+  const rx = (Number(reference[0]) * 1000) + Number(reference[2]);
+  const ry = (Number(reference[1]) * 1000) + Number(reference[3]);
+  const best = []; // Sorted by distance, at most `count` long
+  for (const pixel of pixels) {
+    const dx = ((pixel.tileX * 1000) + pixel.pixelX) - rx;
+    const dy = ((pixel.tileY * 1000) + pixel.pixelY) - ry;
+    const distance = (dx * dx) + (dy * dy);
+    if ((best.length === count) && (distance >= best[best.length - 1].distance)) {continue;}
+    let index = best.length;
+    while ((index > 0) && (best[index - 1].distance > distance)) {index--;}
+    best.splice(index, 0, {distance: distance, pixel: pixel});
+    if (best.length > count) {best.pop();}
+  }
+  return best.map(entry => entry.pixel);
+}
+
 /** Flies to a pixel.
  * @param {{tileX: number, tileY: number, pixelX: number, pixelY: number}} pixel - The pixel
  * @param {SettingsManager} settingsManager - Used to read the navigation preference

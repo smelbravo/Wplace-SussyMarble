@@ -2,7 +2,7 @@
 // @name            Sussy Marble
 // @name:en         Sussy Marble
 // @namespace       https://github.com/smelbravo/
-// @version         1.0.0
+// @version         1.0.1
 // @description     Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @description:en  Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @author          smelbravo (fork) | SwingTheVine (Blue Marble) | Seris0 (Skirk Marble) | t-wy (Userscripts fork)
@@ -1855,6 +1855,31 @@ Returning zero...`);
     }
     return best;
   }
+  function nearestPixels(pixels, reference, count = 40) {
+    if (reference?.length !== 4) {
+      return pixels.slice(0, count);
+    }
+    const rx = Number(reference[0]) * 1e3 + Number(reference[2]);
+    const ry = Number(reference[1]) * 1e3 + Number(reference[3]);
+    const best = [];
+    for (const pixel of pixels) {
+      const dx = pixel.tileX * 1e3 + pixel.pixelX - rx;
+      const dy = pixel.tileY * 1e3 + pixel.pixelY - ry;
+      const distance = dx * dx + dy * dy;
+      if (best.length === count && distance >= best[best.length - 1].distance) {
+        continue;
+      }
+      let index = best.length;
+      while (index > 0 && best[index - 1].distance > distance) {
+        index--;
+      }
+      best.splice(index, 0, { distance, pixel });
+      if (best.length > count) {
+        best.pop();
+      }
+    }
+    return best.map((entry) => entry.pixel);
+  }
   async function travelToPixel(pixel, settingsManager) {
     const latlng = canvasPosToLatLng([pixel.tileX, pixel.tileY, pixel.pixelX, pixel.pixelY]);
     if (!latlng) {
@@ -2730,7 +2755,9 @@ Returning zero...`);
         this.userSettings?.flags?.push(flagName);
       }
       console.log("Flag Settings Final: ", this.userSettings?.flags);
-      refreshTiles();
+      if (/^(hl|em)-/.test(flagName)) {
+        refreshTiles();
+      }
     }
     // This is one of the most insane OOP setups I have ever laid my eyes on
     /** Builds the "highlight" category of the settings window
@@ -4192,18 +4219,13 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
       }
       const all = templateManager.getFinderList(this.kind);
       const reference = this.apiManager?.coordsTilePixel;
-      if (reference?.length === 4) {
-        const rx = Number(reference[0]) * 1e3 + Number(reference[2]);
-        const ry = Number(reference[1]) * 1e3 + Number(reference[3]);
-        const distance = (pixel) => Math.hypot(pixel.tileX * 1e3 + pixel.pixelX - rx, pixel.tileY * 1e3 + pixel.pixelY - ry);
-        all.sort((a, b) => distance(a) - distance(b));
-      }
+      const shown = nearestPixels(all, reference, MAX_ROWS);
       this.summary.textContent = `${this.kind === "wrong" ? "Wrong" : "Missing"} pixels found so far: ${localizeNumber(all.length)}` + (reference?.length === 4 ? " (nearest to your last clicked pixel first)" : "");
       this.list.replaceChildren();
       if (all.length === 0) {
         this.list.append(this.el("small", { textContent: "Nothing here. Pan over your template so its tiles load, then refresh." }));
       }
-      for (const pixel of all.slice(0, MAX_ROWS)) {
+      for (const pixel of shown) {
         const button = this.el("button", {
           className: "bm-sussy-go",
           textContent: `Tl ${pixel.tileX},${pixel.tileY} \u2022 Px ${pixel.pixelX},${pixel.pixelY}`
@@ -4832,6 +4854,49 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
       return { entries: this.entries.size, megabytes: (this.bytes / 1048576).toFixed(1), hits: this.hits, misses: this.misses };
     }
   };
+  var _TaskQueue_instances, next_fn;
+  var TaskQueue = class {
+    /**
+     * @param {number} [concurrency=1] - How many tasks may run at the same time
+     * @param {number} [slotTimeoutMs=30000] - A task that runs longer than this frees its slot so one stuck render can never block every other tile
+     */
+    constructor(concurrency = 1, slotTimeoutMs = 3e4) {
+      __privateAdd(this, _TaskQueue_instances);
+      this.concurrency = concurrency;
+      this.slotTimeoutMs = slotTimeoutMs;
+      this.running = 0;
+      this.waiting = [];
+    }
+    /** Queues a task.
+     * @param {() => Promise<*>} task - The task
+     * @returns {Promise<*>} Resolves/rejects with the task's result
+     */
+    run(task) {
+      return new Promise((resolve, reject) => {
+        this.waiting.push({ task, resolve, reject });
+        __privateMethod(this, _TaskQueue_instances, next_fn).call(this);
+      });
+    }
+  };
+  _TaskQueue_instances = new WeakSet();
+  next_fn = function() {
+    while (this.running < this.concurrency && this.waiting.length) {
+      const { task, resolve, reject } = this.waiting.shift();
+      this.running++;
+      let released = false;
+      const release = () => {
+        if (released) {
+          return;
+        }
+        released = true;
+        clearTimeout(watchdog);
+        this.running--;
+        setTimeout(() => __privateMethod(this, _TaskQueue_instances, next_fn).call(this), 0);
+      };
+      const watchdog = setTimeout(release, this.slotTimeoutMs);
+      Promise.resolve().then(task).then(resolve, reject).finally(release);
+    }
+  };
 
   // src/errorMap.js
   var COLOR_WRONG = 3187671295;
@@ -4847,17 +4912,25 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
     tolerance,
     shouldFilter,
     drawOverlay = false,
+    compactOverlay = false,
     showCorrect = false,
     showMissing = true,
     maxList = 5e3
   }) {
     const [offsetX, offsetY, width, height] = templateInfo;
-    const overlay = drawOverlay ? new Uint32Array(width * height) : null;
+    const compact = drawOverlay && compactOverlay && !showCorrect;
+    const blocksWide = Math.ceil(width / drawMult);
+    const blocksHigh = Math.ceil(height / drawMult);
+    const overlay = drawOverlay ? new Uint32Array(compact ? blocksWide * blocksHigh : width * height) : null;
     const wrong = [];
     const missing = [];
     const counts = { correct: 0, wrong: 0, missing: 0 };
     const half = drawMult - 1 >> 1;
     const paintBlock = (row, column, color) => {
+      if (compact) {
+        overlay[Math.floor(row / drawMult) * blocksWide + Math.floor(column / drawMult)] = color;
+        return;
+      }
       for (let dy = -half; dy <= half; dy++) {
         const base = (row + dy) * width;
         for (let dx = -half; dx <= half; dx++) {
@@ -4916,7 +4989,7 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
         }
       }
     }
-    return { overlay, wrong, missing, counts };
+    return { overlay, overlayCompact: compact, overlayWidth: compact ? blocksWide : width, overlayHeight: compact ? blocksHigh : height, wrong, missing, counts };
   }
 
   // src/templateManager.js
@@ -4950,6 +5023,8 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
       this.finderData = /* @__PURE__ */ new Map();
       this.templateUIDs = /* @__PURE__ */ new WeakMap();
       this.templateUIDCounter = 0;
+      this.renderQueue = new TaskQueue();
+      this.renderInFlight = /* @__PURE__ */ new Map();
     }
     /** Updates the stored instance of the main window.
      * @param {WindowMain} windowMain - The main window instance
@@ -5225,17 +5300,26 @@ Canvas Height: ${canvasHeight}`);
       const flags = this.settingsManager?.userSettings?.flags ?? [];
       const coordsKey = tileCoords[0].toString().padStart(4, "0") + "," + tileCoords[1].toString().padStart(4, "0");
       const hasTemplateHere = this.templatesArray.some((template) => Object.keys(template.chunked).some((tile) => tile.startsWith(coordsKey)));
-      if (flags.includes("tc-off") || !hasTemplateHere) {
-        return __privateMethod(this, _TemplateManager_instances, renderTile_fn).call(this, tileBlob, tileCoords);
+      if (!hasTemplateHere) {
+        return tileBlob;
+      }
+      if (flags.includes("tc-off")) {
+        return this.renderQueue.run(() => __privateMethod(this, _TemplateManager_instances, renderTile_fn).call(this, tileBlob, tileCoords));
       }
       const cacheKey = await this.tileCache.makeKey(tileBlob, coordsKey, __privateMethod(this, _TemplateManager_instances, renderSignature_fn).call(this, flags));
       const cached = this.tileCache.get(cacheKey);
       if (cached) {
         return cached;
       }
-      const rendered = await __privateMethod(this, _TemplateManager_instances, renderTile_fn).call(this, tileBlob, tileCoords);
-      this.tileCache.set(cacheKey, rendered);
-      return rendered;
+      let pending2 = this.renderInFlight.get(cacheKey);
+      if (!pending2) {
+        pending2 = this.renderQueue.run(() => __privateMethod(this, _TemplateManager_instances, renderTile_fn).call(this, tileBlob, tileCoords)).then((rendered) => {
+          this.tileCache.set(cacheKey, rendered);
+          return rendered;
+        }).finally(() => this.renderInFlight.delete(cacheKey));
+        this.renderInFlight.set(cacheKey, pending2);
+      }
+      return pending2;
     }
     /** Returns the wrong or missing pixels of the templates that are currently loaded.
      * @param {'wrong'|'missing'} kind - Which list to return
@@ -5449,6 +5533,7 @@ There are ${pixelsCorrectTotal} correct pixels.`);
           tolerance: this.paletteTolerance,
           shouldFilter: this.shouldFilterColor,
           drawOverlay: errorMapOn,
+          compactOverlay: true,
           showCorrect: flags.includes("em-correct"),
           showMissing: !flags.includes("em-noMissing")
         });
@@ -5460,11 +5545,14 @@ There are ${pixelsCorrectTotal} correct pixels.`);
           missing: scan.missing
         });
         if (errorMapOn && scan.overlay) {
-          context.drawImage(
-            await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), template.bitmap.width, template.bitmap.height)),
-            coordXtoDrawAt,
-            coordYtoDrawAt
-          );
+          const overlayBitmap = await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), scan.overlayWidth, scan.overlayHeight));
+          if (scan.overlayCompact) {
+            context.imageSmoothingEnabled = false;
+            context.drawImage(overlayBitmap, 0, 0, scan.overlayWidth, scan.overlayHeight, coordXtoDrawAt, coordYtoDrawAt, scan.overlayWidth * this.drawMult, scan.overlayHeight * this.drawMult);
+          } else {
+            context.drawImage(overlayBitmap, coordXtoDrawAt, coordYtoDrawAt);
+          }
+          overlayBitmap.close?.();
         }
       }
       if (typeof template.instance.pixelCount["correct"] == "undefined") {

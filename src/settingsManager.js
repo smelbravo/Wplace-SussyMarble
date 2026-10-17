@@ -205,7 +205,7 @@ export default class SettingsManager extends WindowSettings {
 
     console.log('Flag Settings Final: ', this.userSettings?.flags);
 
-    refreshTiles(); // Sussy Marble: show the change on the map right away (no need to move the map)
+    if (/^(hl|em)-/.test(flagName)) {refreshTiles();} // Sussy Marble: only flags that change how tiles look need a map refresh
   }
 
   // This is one of the most insane OOP setups I have ever laid my eyes on

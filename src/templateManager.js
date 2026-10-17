@@ -3,7 +3,7 @@ import Template from "./Template";
 import { base64ToUint8, colorpaletteForBlueMarble, consoleError, consoleLog, consoleWarn, localizeNumber, numberToEncoded, sleep, viewCanvasInNewTab } from "./utils";
 import WindowMain from "./WindowMain";
 import WindowWizard from "./WindowWizard";
-import TileCache from "./tileCache";
+import TileCache, { TaskQueue } from "./tileCache";
 import { refreshTiles } from "./mapBridge";
 import { scanTemplateTile } from "./errorMap";
 
@@ -124,6 +124,10 @@ export default class TemplateManager {
     this.finderData = new Map();
     this.templateUIDs = new WeakMap(); // Gives every Template instance a unique number (used by the tile cache signature)
     this.templateUIDCounter = 0;
+    /** Renders one tile at a time: every render needs ~100 MB of temporary memory, and Wplace asks for many tiles at once @type {TaskQueue} */
+    this.renderQueue = new TaskQueue();
+    /** Renders that are queued or running, by cache key, so the same tile is never rendered twice at the same time @type {Map<string, Promise<Blob>>} */
+    this.renderInFlight = new Map();
   }
 
   /** Updates the stored instance of the main window.
@@ -527,17 +531,25 @@ export default class TemplateManager {
     // Sussy Marble: the smart tile cache. Skipped if the user turned it off, or no template is on this tile.
     const coordsKey = tileCoords[0].toString().padStart(4, '0') + ',' + tileCoords[1].toString().padStart(4, '0');
     const hasTemplateHere = this.templatesArray.some(template => Object.keys(template.chunked).some(tile => tile.startsWith(coordsKey)));
-    if (flags.includes('tc-off') || !hasTemplateHere) {
-      return this.#renderTile(tileBlob, tileCoords);
+    if (!hasTemplateHere) {return tileBlob;} // Nothing to draw on this tile: skip the whole (expensive) pipeline
+
+    if (flags.includes('tc-off')) {
+      return this.renderQueue.run(() => this.#renderTile(tileBlob, tileCoords));
     }
 
     const cacheKey = await this.tileCache.makeKey(tileBlob, coordsKey, this.#renderSignature(flags));
     const cached = this.tileCache.get(cacheKey);
     if (cached) {return cached;}
 
-    const rendered = await this.#renderTile(tileBlob, tileCoords);
-    this.tileCache.set(cacheKey, rendered);
-    return rendered;
+    // The same tile may be requested again while it is still being rendered: share that one render
+    let pending = this.renderInFlight.get(cacheKey);
+    if (!pending) {
+      pending = this.renderQueue.run(() => this.#renderTile(tileBlob, tileCoords))
+        .then((rendered) => {this.tileCache.set(cacheKey, rendered); return rendered;})
+        .finally(() => this.renderInFlight.delete(cacheKey));
+      this.renderInFlight.set(cacheKey, pending);
+    }
+    return pending;
   }
 
   /** Builds a string that changes whenever something that affects the rendered tile changes.
@@ -773,6 +785,7 @@ export default class TemplateManager {
           tolerance: this.paletteTolerance,
           shouldFilter: this.shouldFilterColor,
           drawOverlay: errorMapOn,
+          compactOverlay: true,
           showCorrect: flags.includes('em-correct'),
           showMissing: !flags.includes('em-noMissing')
         });
@@ -786,10 +799,15 @@ export default class TemplateManager {
         });
 
         if (errorMapOn && scan.overlay) {
-          context.drawImage(
-            await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), template.bitmap.width, template.bitmap.height)),
-            coordXtoDrawAt, coordYtoDrawAt
-          );
+          const overlayBitmap = await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), scan.overlayWidth, scan.overlayHeight));
+          if (scan.overlayCompact) {
+            // 1 overlay pixel per template pixel: scale it up with smoothing off (9x less memory and CPU than a full size overlay)
+            context.imageSmoothingEnabled = false;
+            context.drawImage(overlayBitmap, 0, 0, scan.overlayWidth, scan.overlayHeight, coordXtoDrawAt, coordYtoDrawAt, scan.overlayWidth * this.drawMult, scan.overlayHeight * this.drawMult);
+          } else {
+            context.drawImage(overlayBitmap, coordXtoDrawAt, coordYtoDrawAt);
+          }
+          overlayBitmap.close?.();
         }
       }
       // ----- End of Sussy Marble additions -----
