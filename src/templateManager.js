@@ -673,7 +673,7 @@ export default class TemplateManager {
     const tileBitmap = await createImageBitmap(tileBlob);
 
     const canvas = new OffscreenCanvas(drawSize, drawSize);
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true }); // Sussy Marble: this canvas is read back with getImageData() on every render
 
     context.imageSmoothingEnabled = false; // Nearest neighbor
 
@@ -943,7 +943,7 @@ export default class TemplateManager {
   
                 // Converts to Uint32Array
                 const canvas = new OffscreenCanvas(actualTileSize, actualTileSize);
-                const context = canvas.getContext('2d');
+                const context = canvas.getContext('2d', { willReadFrequently: true }); // Sussy Marble: read back right below
                 context.drawImage(templateBitmap, 0, 0);
                 const imageData = context.getImageData(0, 0, templateBitmap.width, templateBitmap.height);
                 templateTiles32[tile] = new Uint32Array(imageData.data.buffer);

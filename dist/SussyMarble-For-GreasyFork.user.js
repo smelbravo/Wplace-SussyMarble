@@ -2,7 +2,7 @@
 // @name            Sussy Marble
 // @name:en         Sussy Marble
 // @namespace       https://github.com/smelbravo/
-// @version         1.0.2
+// @version         1.0.3
 // @description     Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @description:en  Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @author          smelbravo (fork) | SwingTheVine (Blue Marble) | Seris0 (Skirk Marble) | t-wy (Userscripts fork)
@@ -5469,7 +5469,7 @@ Version: ${this.version}`);
     }
     const tileBitmap = await createImageBitmap(tileBlob);
     const canvas = new OffscreenCanvas(drawSize, drawSize);
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     context.imageSmoothingEnabled = false;
     context.beginPath();
     context.rect(0, 0, drawSize, drawSize);
@@ -5620,7 +5620,7 @@ Use Blue Marble version ${scriptVersion} or load a new template.`);
                 const templateBitmap = await createImageBitmap(templateBlob);
                 templateTiles[tile] = templateBitmap;
                 const canvas = new OffscreenCanvas(actualTileSize, actualTileSize);
-                const context = canvas.getContext("2d");
+                const context = canvas.getContext("2d", { willReadFrequently: true });
                 context.drawImage(templateBitmap, 0, 0);
                 const imageData = context.getImageData(0, 0, templateBitmap.width, templateBitmap.height);
                 templateTiles32[tile] = new Uint32Array(imageData.data.buffer);
