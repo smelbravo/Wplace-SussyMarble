@@ -2,7 +2,7 @@
 // @name            Sussy Marble
 // @name:en         Sussy Marble
 // @namespace       https://github.com/smelbravo/
-// @version         1.0.3
+// @version         1.0.4
 // @description     Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @description:en  Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @author          smelbravo (fork) | SwingTheVine (Blue Marble) | Seris0 (Skirk Marble) | t-wy (Userscripts fork)

@@ -128,6 +128,8 @@ export default class TemplateManager {
     this.renderQueue = new TaskQueue();
     /** Renders that are queued or running, by cache key, so the same tile is never rendered twice at the same time @type {Map<string, Promise<Blob>>} */
     this.renderInFlight = new Map();
+    /** The last tile requests with how long each step took, for the diagnostics report @type {Array<Object>} */
+    this.timings = [];
   }
 
   /** Updates the stored instance of the main window.
@@ -533,22 +535,49 @@ export default class TemplateManager {
     const hasTemplateHere = this.templatesArray.some(template => Object.keys(template.chunked).some(tile => tile.startsWith(coordsKey)));
     if (!hasTemplateHere) {return tileBlob;} // Nothing to draw on this tile: skip the whole (expensive) pipeline
 
+    const requestedAt = performance.now();
+    const note = (entry) => {
+      this.timings.push({at: Date.now(), tile: coordsKey, total: Math.round(performance.now() - requestedAt), ...entry});
+      if (this.timings.length > 40) {this.timings.shift();}
+    };
+
+    // One queued render: reports how long it waited for its turn and how long the real work took
+    let queuedAt = performance.now();
+    const job = async () => {
+      const started = performance.now();
+      const blob = await this.#renderTile(tileBlob, tileCoords);
+      return {blob: blob, wait: Math.round(started - queuedAt), render: Math.round(performance.now() - started)};
+    };
+
     if (flags.includes('tc-off')) {
-      return this.renderQueue.run(() => this.#renderTile(tileBlob, tileCoords));
+      queuedAt = performance.now();
+      const result = await this.renderQueue.run(job);
+      note({kind: 'render (cache off)', wait: result.wait, render: result.render});
+      return result.blob;
     }
 
+    const keyStarted = performance.now();
     const cacheKey = await this.tileCache.makeKey(tileBlob, coordsKey, this.#renderSignature(flags));
+    const keyMs = Math.round(performance.now() - keyStarted);
     const cached = this.tileCache.get(cacheKey);
-    if (cached) {return cached;}
+    if (cached) {note({kind: 'cache hit', key: keyMs}); return cached;}
 
     // The same tile may be requested again while it is still being rendered: share that one render
     let pending = this.renderInFlight.get(cacheKey);
-    if (!pending) {
-      pending = this.renderQueue.run(() => this.#renderTile(tileBlob, tileCoords))
-        .then((rendered) => {this.tileCache.set(cacheKey, rendered); return rendered;})
-        .finally(() => this.renderInFlight.delete(cacheKey));
-      this.renderInFlight.set(cacheKey, pending);
+    if (pending) {
+      const blob = await pending;
+      note({kind: 'shared a render in progress', key: keyMs});
+      return blob;
     }
+    queuedAt = performance.now(); // The wait is counted from here, so it does not include the hashing above
+    pending = this.renderQueue.run(job)
+      .then((result) => {
+        this.tileCache.set(cacheKey, result.blob);
+        note({kind: 'render', key: keyMs, wait: result.wait, render: result.render});
+        return result.blob;
+      })
+      .finally(() => this.renderInFlight.delete(cacheKey));
+    this.renderInFlight.set(cacheKey, pending);
     return pending;
   }
 

@@ -5,6 +5,7 @@ import WindowSettings from "./WindowSettings";
 import { BRAND } from "./branding";
 import { refreshTiles } from "./mapBridge";
 import { applyMobileMode } from "./mobileMode";
+import { buildReport } from "./diagnostics";
 
 /** Documentation for `windowState` encoding.
  * The variables are stored as concatnated, Big-Endian, base 92, substrings.
@@ -899,6 +900,23 @@ export default class SettingsManager extends WindowSettings {
           checkbox.checked = this.userSettings?.flags?.includes('nav-url');
           checkbox.onchange = (event) => this.toggleFlag('nav-url', event.target.checked);
         }).buildElement()
+        .addP({'textContent': 'Diagnostics (if the page lags, press this and send me the text):', 'style': 'font-weight: 700;'}).buildElement()
+        .addButton({'textContent': 'Show diagnostics'}, (instance, button) => {
+          button.onclick = () => {
+            const box = document.getElementById('bm-diagnostics-box');
+            if (!box) {return;}
+            const textarea = document.createElement('textarea');
+            textarea.readOnly = true;
+            textarea.rows = 12;
+            textarea.style.cssText = 'width: 100%; box-sizing: border-box; font-size: 11px;';
+            textarea.value = buildReport({templateManager: this.templateManager, settingsManager: this, version: this.version});
+            box.replaceChildren(textarea);
+            textarea.focus();
+            textarea.select();
+            navigator.clipboard?.writeText(textarea.value).catch(() => {}); // Copied for you when the browser allows it
+          };
+        }).buildElement()
+        .addDiv({'id': 'bm-diagnostics-box'}).buildElement()
       .buildElement()
     .buildElement()
   }

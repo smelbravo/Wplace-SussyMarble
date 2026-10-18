@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+**Fixes a freeze of 20-30 seconds that happened with Tampermonkey on Firefox.**
+- The smart tile cache fingerprinted every tile by looping over each of its bytes in JavaScript (about a million per tile), on every tile request. Blue Marble never does this. Userscript managers such as Tampermonkey on Firefox wrap the page's data in a protective layer, which makes every single byte access very slow, so the page froze. The fingerprint is now computed by the browser's built-in SHA-1 (a single native call), with a tiny sampled fingerprint as a fallback. Changing even one pixel of a tile always changes the fingerprint (tested).
+- **New: Settings → Sussy Marble → "Show diagnostics".** Shows, measured in your own browser, how long the last tile requests took (hashing, waiting in the queue, rendering) and every time the page froze for more than 300 ms. It also copies the text for you, so a lag can be reported with real numbers. Nothing is sent anywhere.
+
 ## 1.0.3
 **Tiles are about 3.5x faster to process.** This is the real cause of the stutter when tiles refresh (for example right after you paint).
 - The canvas used to draw each tile was read back with `getImageData()` without being marked as `willReadFrequently`. In a real browser profile, that single call took 69% of the whole render time (reading 36 MB back from the graphics side). Marking the canvas lets the browser keep it in memory, and the same 6 renders went from 3067 ms to 827 ms. The image produced is identical, pixel for pixel, to Blue Marble's (checked at 3000x3000). Loading saved templates at startup got the same treatment.

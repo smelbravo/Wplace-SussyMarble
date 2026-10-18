@@ -6,7 +6,7 @@
  * @since 1.0.0
  */
 
-/** Hashes bytes with two independent 32-bit FNV-1a style passes (collision odds are negligible for this use).
+/** Hashes bytes with two independent 32-bit FNV-1a style passes. Touches EVERY byte, so it is only meant for small inputs and tests.
  * @param {Uint8Array} bytes - The bytes to hash
  * @returns {string} A hex string
  */
@@ -20,6 +20,50 @@ export function hashBytes(bytes) {
     h2 ^= h2 >>> 13;
   }
   return (h1 >>> 0).toString(16) + (h2 >>> 0).toString(16);
+}
+
+/** Cheap fingerprint that reads at most ~5000 bytes, however big the buffer is.
+ * A PNG ends with the checksum of all its image data, so changing a single pixel always changes the last bytes.
+ * Used only when the browser has no native digest.
+ * @param {ArrayBuffer} buffer - The buffer
+ * @returns {string} A hex string
+ */
+export function sampleHash(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const length = bytes.length;
+  const head = Math.min(256, length);
+  const tailStart = Math.max(head, length - 256);
+  const stride = Math.max(1, Math.floor(length / 4096));
+  let h1 = 0x811c9dc5 ^ length;
+  let h2 = 0x01000193;
+  const mix = (index) => {
+    const byte = bytes[index];
+    h1 = Math.imul(h1 ^ byte, 0x01000193);
+    h2 = Math.imul(h2 + byte + index, 0x85ebca6b);
+    h2 ^= h2 >>> 13;
+  };
+  for (let i = 0; i < head; i++) {mix(i);}
+  for (let i = head; i < tailStart; i += stride) {mix(i);}
+  for (let i = tailStart; i < length; i++) {mix(i);}
+  return (h1 >>> 0).toString(16) + (h2 >>> 0).toString(16);
+}
+
+/** Fingerprints a buffer WITHOUT looping over its bytes in JavaScript.
+ * The browser's native SHA-1 does the work. (Looping over ~1 million bytes in JS is very slow in userscript managers
+ * that wrap page data, such as Tampermonkey on Firefox, and froze the page for many seconds.)
+ * @param {ArrayBuffer} buffer - The buffer
+ * @returns {Promise<string>} A hex string
+ */
+export async function digestBuffer(buffer) {
+  try {
+    if (globalThis.crypto?.subtle?.digest) {
+      const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-1', buffer));
+      let hex = '';
+      for (let i = 0; i < 12; i++) {hex += hash[i].toString(16).padStart(2, '0');}
+      return hex;
+    }
+  } catch { /* Falls through to the sampled fingerprint */ }
+  return sampleHash(buffer);
 }
 
 export default class TileCache {
@@ -44,8 +88,8 @@ export default class TileCache {
    * @returns {Promise<string>} The key
    */
   async makeKey(tileBlob, coords, signature) {
-    const bytes = new Uint8Array(await tileBlob.arrayBuffer());
-    return `${coords}|${signature}|${tileBlob.size}:${hashBytes(bytes)}`;
+    const fingerprint = await digestBuffer(await tileBlob.arrayBuffer());
+    return `${coords}|${signature}|${tileBlob.size}:${fingerprint}`;
   }
 
   /** @returns {Blob|undefined} The cached tile (and marks it as recently used) */

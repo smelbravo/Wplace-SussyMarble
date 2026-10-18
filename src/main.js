@@ -15,6 +15,7 @@ import WindowFilter from './WindowFilter.js';
 import ProgressTracker from './ProgressTracker.js';
 import { startKeyboardPan } from './keyboardPan.js';
 import { initMobileMode } from './mobileMode.js';
+import { startStallMeter } from './diagnostics.js';
 
 const name = GM_info.script.name.toString(); // Name of userscript
 const version = GM_info.script.version.toString(); // Version of userscript
@@ -333,6 +334,7 @@ if (document.readyState === 'loading') {
   // Sussy Marble: progress bars (top of the screen + main window)
   const progressTracker = new ProgressTracker(templateManager, settingsManager, apiManager);
   progressTracker.start();
+  startStallMeter(); // Counts page freezes for the diagnostics report (Settings → Sussy Marble)
   initMobileMode(settingsManager, templateManager); // Mobile mode (auto-on for touch screens the first time)
   startKeyboardPan(settingsManager); // WASD panning (opt-in in Settings)
 
