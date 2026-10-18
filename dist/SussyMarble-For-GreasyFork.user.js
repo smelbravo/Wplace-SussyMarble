@@ -2,13 +2,13 @@
 // @name            Sussy Marble
 // @name:en         Sussy Marble
 // @namespace       https://github.com/smelbravo/
-// @version         1.0.0
+// @version         1.0.5
 // @description     Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @description:en  Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @author          smelbravo (fork) | SwingTheVine (Blue Marble) | Seris0 (Skirk Marble) | t-wy (Userscripts fork)
 // @license         MPL-2.0
 // @homepageURL     https://github.com/smelbravo/Wplace-SussyMarble
-// @icon            https://raw.githubusercontent.com/smelbravo/Wplace-SussyMarble/main/dist/assets/SussySquad-symbol.png
+// @icon            https://raw.githubusercontent.com/smelbravo/Wplace-SussyMarble/main/dist/assets/SussySquad-icon.png
 // @updateURL       https://raw.githubusercontent.com/smelbravo/Wplace-SussyMarble/main/dist/SussyMarble-For-GreasyFork.user.js
 // @downloadURL     https://raw.githubusercontent.com/smelbravo/Wplace-SussyMarble/main/dist/SussyMarble-For-GreasyFork.user.js
 // @match           https://wplace.live/*
@@ -1123,22 +1123,22 @@
       const properties = {
         "class": timerClass
       };
-      const timer = __privateMethod(this, _Overlay_instances, createElement_fn).call(this, "time", properties, additionalProperties);
-      timer.id = timerID;
-      timer.dataset["endDate"] = endDate;
+      const timer2 = __privateMethod(this, _Overlay_instances, createElement_fn).call(this, "time", properties, additionalProperties);
+      timer2.id = timerID;
+      timer2.dataset["endDate"] = endDate;
       setInterval(() => {
-        if (!timer.isConnected) {
+        if (!timer2.isConnected) {
           return;
         }
-        const timeRemainingTotalMs = Math.max(timer.dataset["endDate"] - Date.now(), 0);
+        const timeRemainingTotalMs = Math.max(timer2.dataset["endDate"] - Date.now(), 0);
         const timeRemainingTotalSec = Math.floor(timeRemainingTotalMs / 1e3);
         const timeRemainingTotalHr = Math.floor(timeRemainingTotalSec / 3600);
         const timeRemainingOnlySec = Math.floor(timeRemainingTotalSec % 60);
         const timeRemainingOnlyMin = Math.floor(timeRemainingTotalSec % 3600 / 60);
-        timer.setAttribute("datetime", `PT${timeRemainingTotalHr}H${timeRemainingOnlyMin}M${timeRemainingOnlySec}S`);
-        timer.textContent = String(timeRemainingTotalHr).padStart(2, "0") + ":" + String(timeRemainingOnlyMin).padStart(2, "0") + ":" + String(timeRemainingOnlySec).padStart(2, "0");
+        timer2.setAttribute("datetime", `PT${timeRemainingTotalHr}H${timeRemainingOnlyMin}M${timeRemainingOnlySec}S`);
+        timer2.textContent = String(timeRemainingTotalHr).padStart(2, "0") + ":" + String(timeRemainingOnlyMin).padStart(2, "0") + ":" + String(timeRemainingOnlySec).padStart(2, "0");
       }, updateInterval);
-      callback(this, timer);
+      callback(this, timer2);
       return this;
     }
     /** Updates the inner HTML of the element.
@@ -1795,11 +1795,11 @@ Returning zero...`);
     listen();
     return new Promise((resolve) => {
       const id = ++requestID;
-      const timer = setTimeout(() => {
+      const timer2 = setTimeout(() => {
         pending.delete(id);
         resolve({ ok: false, result: null });
       }, 800);
-      pending.set(id, { resolve, timer });
+      pending.set(id, { resolve, timer: timer2 });
       window.postMessage({ "source": "sussy-marble", "action": "map", "id": id, "op": op, "args": args }, "*");
     });
   }
@@ -1854,6 +1854,31 @@ Returning zero...`);
       }
     }
     return best;
+  }
+  function nearestPixels(pixels, reference, count = 40) {
+    if (reference?.length !== 4) {
+      return pixels.slice(0, count);
+    }
+    const rx = Number(reference[0]) * 1e3 + Number(reference[2]);
+    const ry = Number(reference[1]) * 1e3 + Number(reference[3]);
+    const best = [];
+    for (const pixel of pixels) {
+      const dx = pixel.tileX * 1e3 + pixel.pixelX - rx;
+      const dy = pixel.tileY * 1e3 + pixel.pixelY - ry;
+      const distance = dx * dx + dy * dy;
+      if (best.length === count && distance >= best[best.length - 1].distance) {
+        continue;
+      }
+      let index = best.length;
+      while (index > 0 && best[index - 1].distance > distance) {
+        index--;
+      }
+      best.splice(index, 0, { distance, pixel });
+      if (best.length > count) {
+        best.pop();
+      }
+    }
+    return best.map((entry) => entry.pixel);
   }
   async function travelToPixel(pixel, settingsManager) {
     const latlng = canvasPosToLatLng([pixel.tileX, pixel.tileY, pixel.pixelX, pixel.pixelY]);
@@ -2633,6 +2658,63 @@ Returning zero...`);
     applyMobileMode(settingsManager, templateManager);
   }
 
+  // src/diagnostics.js
+  var STALL_LIMIT_MS = 300;
+  var TICK_MS = 200;
+  var stalls = { count: 0, maxMs: 0, totalMs: 0, events: [] };
+  var timer = null;
+  function startStallMeter() {
+    if (timer) {
+      return;
+    }
+    let last = performance.now();
+    timer = setInterval(() => {
+      const now = performance.now();
+      const late = now - last - TICK_MS;
+      last = now;
+      if (document.hidden) {
+        return;
+      }
+      if (late > STALL_LIMIT_MS) {
+        stalls.count++;
+        stalls.totalMs += late;
+        stalls.maxMs = Math.max(stalls.maxMs, late);
+        stalls.events.push({ at: (/* @__PURE__ */ new Date()).toLocaleTimeString(), ms: Math.round(late) });
+        if (stalls.events.length > 12) {
+          stalls.events.shift();
+        }
+      }
+    }, TICK_MS);
+  }
+  function buildReport({ templateManager, settingsManager, version: version2 }) {
+    const lines = [];
+    const flags = settingsManager?.userSettings?.flags ?? [];
+    const templates = templateManager?.templatesArray ?? [];
+    const cache = templateManager?.tileCache?.stats?.();
+    lines.push(`Sussy Marble ${version2} diagnostics`);
+    lines.push(`Browser: ${navigator.userAgent}`);
+    lines.push(`Screen: ${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio}x | mobile mode: ${document.documentElement.classList.contains("bm-mobile")}`);
+    lines.push(`Settings flags: ${flags.join(", ") || "(none)"}`);
+    lines.push(`Templates: ${templates.length} (${templates.map((t) => `${t.pixelCount?.total ?? "?"} px, ${Object.keys(t.chunked ?? {}).length} tile(s)`).join(" | ") || "none"})`);
+    if (cache) {
+      lines.push(`Tile cache: ${cache.entries} tiles, ${cache.megabytes} MB, ${cache.hits} hits, ${cache.misses} misses`);
+    }
+    lines.push(`Page freezes over ${STALL_LIMIT_MS} ms since load: ${stalls.count} (longest ${Math.round(stalls.maxMs)} ms, total ${Math.round(stalls.totalMs)} ms)`);
+    if (stalls.events.length) {
+      lines.push(`  recent: ${stalls.events.map((e) => `${e.at} ${e.ms} ms`).join(" | ")}`);
+    }
+    lines.push("");
+    lines.push("Last tile requests (ms): time | tile | what happened | hashing | queue wait | render | total");
+    const timings = templateManager?.timings ?? [];
+    if (!timings.length) {
+      lines.push("  (none yet: paint something or move the map, then press the button again)");
+    }
+    for (const entry of timings.slice(-25)) {
+      lines.push(`  ${new Date(entry.at).toLocaleTimeString()} | ${entry.tile} | ${entry.kind} | ${entry.key ?? "-"} | ${entry.wait ?? "-"} | ${entry.render ?? "-"} | ${entry.total}`);
+    }
+    return lines.join("\n");
+  }
+
   // src/settingsManager.js
   var _windowStatesObject, _windowStatesObjectEncoded, _SettingsManager_instances, updateHighlightSettings_fn, updateHighlightToPreset_fn, updateFilteredColors_fn, updateWindowState_fn, decodeWindowStateToObject_fn;
   var SettingsManager = class extends WindowSettings {
@@ -2730,7 +2812,9 @@ Returning zero...`);
         this.userSettings?.flags?.push(flagName);
       }
       console.log("Flag Settings Final: ", this.userSettings?.flags);
-      refreshTiles();
+      if (/^(hl|em)-/.test(flagName)) {
+        refreshTiles();
+      }
     }
     // This is one of the most insane OOP setups I have ever laid my eyes on
     /** Builds the "highlight" category of the settings window
@@ -2872,7 +2956,24 @@ Returning zero...`);
       }).buildElement().addCheckbox({ "textContent": "Search/finder: open locations by URL (reloads the page) instead of flying the camera" }, (instance, label, checkbox) => {
         checkbox.checked = this.userSettings?.flags?.includes("nav-url");
         checkbox.onchange = (event) => this.toggleFlag("nav-url", event.target.checked);
-      }).buildElement().buildElement().buildElement();
+      }).buildElement().addP({ "textContent": "Diagnostics (if the page lags, press this and send me the text):", "style": "font-weight: 700;" }).buildElement().addButton({ "textContent": "Show diagnostics" }, (instance, button) => {
+        button.onclick = () => {
+          const box = document.getElementById("bm-diagnostics-box");
+          if (!box) {
+            return;
+          }
+          const textarea = document.createElement("textarea");
+          textarea.readOnly = true;
+          textarea.rows = 12;
+          textarea.style.cssText = "width: 100%; box-sizing: border-box; font-size: 11px;";
+          textarea.value = buildReport({ templateManager: this.templateManager, settingsManager: this, version: this.version });
+          box.replaceChildren(textarea);
+          textarea.focus();
+          textarea.select();
+          navigator.clipboard?.writeText(textarea.value).catch(() => {
+          });
+        };
+      }).buildElement().addDiv({ "id": "bm-diagnostics-box" }).buildElement().buildElement().buildElement();
     }
     /** Returns the decoded window states
      * @since 0.92.69
@@ -3284,9 +3385,9 @@ Assuming all common states are zeros...`);
       canvas.height = imageHeight;
       context.imageSmoothingEnabled = false;
       context.drawImage(bitmap, 0, 0);
-      let timer = Date.now();
+      let timer2 = Date.now();
       const totalPixelMap = __privateMethod(this, _Template_instances, calculateTotalPixelsFromImageData_fn).call(this, context.getImageData(0, 0, imageWidth, imageHeight), paletteBM);
-      console.log(`Calculating total pixels took ${(Date.now() - timer) / 1e3} seconds`);
+      console.log(`Calculating total pixels took ${(Date.now() - timer2) / 1e3} seconds`);
       let totalPixels = 0;
       const transparentColorID = 0;
       for (const [color, total] of totalPixelMap) {
@@ -3296,7 +3397,7 @@ Assuming all common states are zeros...`);
         totalPixels += total;
       }
       this.pixelCount = { total: totalPixels, colors: totalPixelMap };
-      timer = Date.now();
+      timer2 = Date.now();
       const canvasMask = new OffscreenCanvas(3, 3);
       const contextMask = canvasMask.getContext("2d");
       contextMask.clearRect(0, 0, 3, 3);
@@ -3378,7 +3479,7 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
         }
         pixelY += drawSizeY;
       }
-      console.log(`Parsing template took ${(Date.now() - timer) / 1e3} seconds`);
+      console.log(`Parsing template took ${(Date.now() - timer2) / 1e3} seconds`);
       console.log("Template Tiles: ", templateTiles);
       console.log("Template Tiles Buffers: ", templateTilesBuffers);
       console.log("Template Tiles Uint32Array: ", this.chunked32);
@@ -3401,7 +3502,7 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
     }) {
       console.log(`Calculating template tile transparency...`);
       console.log(`Should Skip: ${this.shouldSkipTransTiles}; Should Agg: ${this.shouldAggSkipTransTiles}`);
-      const timer = Date.now();
+      const timer2 = Date.now();
       const duplicationCoordinateArray = [
         [0, 1],
         // E.g. move 0 on the x axis, and 1 down on the y axis
@@ -3480,7 +3581,7 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
       }
       const shunkCanvas = transContext.getImageData(0, 0, 10, 10);
       const shunkCanvas32 = new Uint32Array(shunkCanvas.data.buffer);
-      console.log(`Calculated canvas transparency in ${(Date.now() - timer) / 1e3} seconds.`);
+      console.log(`Calculated canvas transparency in ${(Date.now() - timer2) / 1e3} seconds.`);
       for (const pixel of shunkCanvas32) {
         if (!!pixel) {
           return true;
@@ -4192,18 +4293,13 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
       }
       const all = templateManager.getFinderList(this.kind);
       const reference = this.apiManager?.coordsTilePixel;
-      if (reference?.length === 4) {
-        const rx = Number(reference[0]) * 1e3 + Number(reference[2]);
-        const ry = Number(reference[1]) * 1e3 + Number(reference[3]);
-        const distance = (pixel) => Math.hypot(pixel.tileX * 1e3 + pixel.pixelX - rx, pixel.tileY * 1e3 + pixel.pixelY - ry);
-        all.sort((a, b) => distance(a) - distance(b));
-      }
+      const shown = nearestPixels(all, reference, MAX_ROWS);
       this.summary.textContent = `${this.kind === "wrong" ? "Wrong" : "Missing"} pixels found so far: ${localizeNumber(all.length)}` + (reference?.length === 4 ? " (nearest to your last clicked pixel first)" : "");
       this.list.replaceChildren();
       if (all.length === 0) {
         this.list.append(this.el("small", { textContent: "Nothing here. Pan over your template so its tiles load, then refresh." }));
       }
-      for (const pixel of all.slice(0, MAX_ROWS)) {
+      for (const pixel of shown) {
         const button = this.el("button", {
           className: "bm-sussy-go",
           textContent: `Tl ${pixel.tileX},${pixel.tileY} \u2022 Px ${pixel.pixelX},${pixel.pixelY}`
@@ -4579,8 +4675,8 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
             confettiManager.createConfetti(document.querySelector(`#${this.windowID}`));
           };
         }
-      }).buildElement().addHeader(1, { "textContent": this.name }).buildElement().buildElement().addHr().buildElement().addDiv({ "class": "bm-container" }).addSpan({ "id": "bm-user-droplets", "textContent": "Droplets:" }).buildElement().addBr().buildElement().addSpan({ "id": "bm-user-nextlevel", "textContent": "Next level in..." }).buildElement().addBr().buildElement().addDiv({ "id": "bm-user-suspend", "style": "display: none; color: #ff9aa2; font-weight: 700;" }).buildElement().addSpan({ "textContent": "Charges: " }).addTimer(Date.now(), 1e3, { "style": "font-weight: 700;" }, (instance, timer) => {
-        instance.apiManager.chargeRefillTimerID = timer.id;
+      }).buildElement().addHeader(1, { "textContent": this.name }).buildElement().buildElement().addHr().buildElement().addDiv({ "class": "bm-container" }).addSpan({ "id": "bm-user-droplets", "textContent": "Droplets:" }).buildElement().addBr().buildElement().addSpan({ "id": "bm-user-nextlevel", "textContent": "Next level in..." }).buildElement().addBr().buildElement().addDiv({ "id": "bm-user-suspend", "style": "display: none; color: #ff9aa2; font-weight: 700;" }).buildElement().addSpan({ "textContent": "Charges: " }).addTimer(Date.now(), 1e3, { "style": "font-weight: 700;" }, (instance, timer2) => {
+        instance.apiManager.chargeRefillTimerID = timer2.id;
       }).buildElement().buildElement().buildElement().addHr().buildElement().addDiv({ "class": "bm-container" }).addDiv({ "class": "bm-container" }).addButton(
         { "class": "bm-button-circle bm-button-pin", "style": "margin-top: 0;", "innerHTML": '<svg viewBox="0 0 4 6"><path d="M.5,3.4A2,2 0 1 1 3.5,3.4L2,6"/><circle cx="2" cy="2" r=".7" fill="#fff"/></svg>' },
         (instance, button) => {
@@ -4748,16 +4844,44 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
   };
 
   // src/tileCache.js
-  function hashBytes(bytes) {
-    let h1 = 2166136261;
+  function sampleHash(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const length = bytes.length;
+    const head = Math.min(256, length);
+    const tailStart = Math.max(head, length - 256);
+    const stride = Math.max(1, Math.floor(length / 4096));
+    let h1 = 2166136261 ^ length;
     let h2 = 16777619;
-    for (let i = 0; i < bytes.length; i++) {
-      const byte = bytes[i];
+    const mix = (index) => {
+      const byte = bytes[index];
       h1 = Math.imul(h1 ^ byte, 16777619);
-      h2 = Math.imul(h2 + byte + i, 2246822507);
+      h2 = Math.imul(h2 + byte + index, 2246822507);
       h2 ^= h2 >>> 13;
+    };
+    for (let i = 0; i < head; i++) {
+      mix(i);
+    }
+    for (let i = head; i < tailStart; i += stride) {
+      mix(i);
+    }
+    for (let i = tailStart; i < length; i++) {
+      mix(i);
     }
     return (h1 >>> 0).toString(16) + (h2 >>> 0).toString(16);
+  }
+  async function digestBuffer(buffer) {
+    try {
+      if (globalThis.crypto?.subtle?.digest) {
+        const hash = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-1", buffer));
+        let hex = "";
+        for (let i = 0; i < 12; i++) {
+          hex += hash[i].toString(16).padStart(2, "0");
+        }
+        return hex;
+      }
+    } catch {
+    }
+    return sampleHash(buffer);
   }
   var TileCache = class {
     /**
@@ -4779,8 +4903,8 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
      * @returns {Promise<string>} The key
      */
     async makeKey(tileBlob, coords, signature) {
-      const bytes = new Uint8Array(await tileBlob.arrayBuffer());
-      return `${coords}|${signature}|${tileBlob.size}:${hashBytes(bytes)}`;
+      const fingerprint = await digestBuffer(await tileBlob.arrayBuffer());
+      return `${coords}|${signature}|${tileBlob.size}:${fingerprint}`;
     }
     /** @returns {Blob|undefined} The cached tile (and marks it as recently used) */
     get(key) {
@@ -4832,6 +4956,49 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
       return { entries: this.entries.size, megabytes: (this.bytes / 1048576).toFixed(1), hits: this.hits, misses: this.misses };
     }
   };
+  var _TaskQueue_instances, next_fn;
+  var TaskQueue = class {
+    /**
+     * @param {number} [concurrency=1] - How many tasks may run at the same time
+     * @param {number} [slotTimeoutMs=30000] - A task that runs longer than this frees its slot so one stuck render can never block every other tile
+     */
+    constructor(concurrency = 1, slotTimeoutMs = 3e4) {
+      __privateAdd(this, _TaskQueue_instances);
+      this.concurrency = concurrency;
+      this.slotTimeoutMs = slotTimeoutMs;
+      this.running = 0;
+      this.waiting = [];
+    }
+    /** Queues a task.
+     * @param {() => Promise<*>} task - The task
+     * @returns {Promise<*>} Resolves/rejects with the task's result
+     */
+    run(task) {
+      return new Promise((resolve, reject) => {
+        this.waiting.push({ task, resolve, reject });
+        __privateMethod(this, _TaskQueue_instances, next_fn).call(this);
+      });
+    }
+  };
+  _TaskQueue_instances = new WeakSet();
+  next_fn = function() {
+    while (this.running < this.concurrency && this.waiting.length) {
+      const { task, resolve, reject } = this.waiting.shift();
+      this.running++;
+      let released = false;
+      const release = () => {
+        if (released) {
+          return;
+        }
+        released = true;
+        clearTimeout(watchdog);
+        this.running--;
+        setTimeout(() => __privateMethod(this, _TaskQueue_instances, next_fn).call(this), 0);
+      };
+      const watchdog = setTimeout(release, this.slotTimeoutMs);
+      Promise.resolve().then(task).then(resolve, reject).finally(release);
+    }
+  };
 
   // src/errorMap.js
   var COLOR_WRONG = 3187671295;
@@ -4847,17 +5014,25 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
     tolerance,
     shouldFilter,
     drawOverlay = false,
+    compactOverlay = false,
     showCorrect = false,
     showMissing = true,
     maxList = 5e3
   }) {
     const [offsetX, offsetY, width, height] = templateInfo;
-    const overlay = drawOverlay ? new Uint32Array(width * height) : null;
+    const compact = drawOverlay && compactOverlay && !showCorrect;
+    const blocksWide = Math.ceil(width / drawMult);
+    const blocksHigh = Math.ceil(height / drawMult);
+    const overlay = drawOverlay ? new Uint32Array(compact ? blocksWide * blocksHigh : width * height) : null;
     const wrong = [];
     const missing = [];
     const counts = { correct: 0, wrong: 0, missing: 0 };
     const half = drawMult - 1 >> 1;
     const paintBlock = (row, column, color) => {
+      if (compact) {
+        overlay[Math.floor(row / drawMult) * blocksWide + Math.floor(column / drawMult)] = color;
+        return;
+      }
       for (let dy = -half; dy <= half; dy++) {
         const base = (row + dy) * width;
         for (let dx = -half; dx <= half; dx++) {
@@ -4916,7 +5091,7 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
         }
       }
     }
-    return { overlay, wrong, missing, counts };
+    return { overlay, overlayCompact: compact, overlayWidth: compact ? blocksWide : width, overlayHeight: compact ? blocksHigh : height, wrong, missing, counts };
   }
 
   // src/templateManager.js
@@ -4950,6 +5125,9 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
       this.finderData = /* @__PURE__ */ new Map();
       this.templateUIDs = /* @__PURE__ */ new WeakMap();
       this.templateUIDCounter = 0;
+      this.renderQueue = new TaskQueue();
+      this.renderInFlight = /* @__PURE__ */ new Map();
+      this.timings = [];
     }
     /** Updates the stored instance of the main window.
      * @param {WindowMain} windowMain - The main window instance
@@ -5225,17 +5403,50 @@ Canvas Height: ${canvasHeight}`);
       const flags = this.settingsManager?.userSettings?.flags ?? [];
       const coordsKey = tileCoords[0].toString().padStart(4, "0") + "," + tileCoords[1].toString().padStart(4, "0");
       const hasTemplateHere = this.templatesArray.some((template) => Object.keys(template.chunked).some((tile) => tile.startsWith(coordsKey)));
-      if (flags.includes("tc-off") || !hasTemplateHere) {
-        return __privateMethod(this, _TemplateManager_instances, renderTile_fn).call(this, tileBlob, tileCoords);
+      if (!hasTemplateHere) {
+        return tileBlob;
       }
+      const requestedAt = performance.now();
+      const note = (entry) => {
+        this.timings.push({ at: Date.now(), tile: coordsKey, total: Math.round(performance.now() - requestedAt), ...entry });
+        if (this.timings.length > 40) {
+          this.timings.shift();
+        }
+      };
+      let queuedAt = performance.now();
+      const job = async () => {
+        const started = performance.now();
+        const blob = await __privateMethod(this, _TemplateManager_instances, renderTile_fn).call(this, tileBlob, tileCoords);
+        return { blob, wait: Math.round(started - queuedAt), render: Math.round(performance.now() - started) };
+      };
+      if (flags.includes("tc-off")) {
+        queuedAt = performance.now();
+        const result = await this.renderQueue.run(job);
+        note({ kind: "render (cache off)", wait: result.wait, render: result.render });
+        return result.blob;
+      }
+      const keyStarted = performance.now();
       const cacheKey = await this.tileCache.makeKey(tileBlob, coordsKey, __privateMethod(this, _TemplateManager_instances, renderSignature_fn).call(this, flags));
+      const keyMs = Math.round(performance.now() - keyStarted);
       const cached = this.tileCache.get(cacheKey);
       if (cached) {
+        note({ kind: "cache hit", key: keyMs });
         return cached;
       }
-      const rendered = await __privateMethod(this, _TemplateManager_instances, renderTile_fn).call(this, tileBlob, tileCoords);
-      this.tileCache.set(cacheKey, rendered);
-      return rendered;
+      let pending2 = this.renderInFlight.get(cacheKey);
+      if (pending2) {
+        const blob = await pending2;
+        note({ kind: "shared a render in progress", key: keyMs });
+        return blob;
+      }
+      queuedAt = performance.now();
+      pending2 = this.renderQueue.run(job).then((result) => {
+        this.tileCache.set(cacheKey, result.blob);
+        note({ kind: "render", key: keyMs, wait: result.wait, render: result.render });
+        return result.blob;
+      }).finally(() => this.renderInFlight.delete(cacheKey));
+      this.renderInFlight.set(cacheKey, pending2);
+      return pending2;
     }
     /** Returns the wrong or missing pixels of the templates that are currently loaded.
      * @param {'wrong'|'missing'} kind - Which list to return
@@ -5385,7 +5596,7 @@ Version: ${this.version}`);
     }
     const tileBitmap = await createImageBitmap(tileBlob);
     const canvas = new OffscreenCanvas(drawSize, drawSize);
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     context.imageSmoothingEnabled = false;
     context.beginPath();
     context.rect(0, 0, drawSize, drawSize);
@@ -5411,7 +5622,7 @@ Version: ${this.version}`);
         const templateBeforeFilter = context.getImageData(coordXtoDrawAt, coordYtoDrawAt, template.bitmap.width, template.bitmap.height);
         templateBeforeFilter32 = new Uint32Array(templateBeforeFilter.data.buffer);
       }
-      const timer = performance.now();
+      const timer2 = performance.now();
       const {
         correctPixels: pixelsCorrect,
         filteredTemplate: templateAfterFilter
@@ -5434,7 +5645,7 @@ Version: ${this.version}`);
         console.log("Colors to filter: ", this.shouldFilterColor);
         context.drawImage(await createImageBitmap(new ImageData(new Uint8ClampedArray(templateAfterFilter.buffer), template.bitmap.width, template.bitmap.height)), coordXtoDrawAt, coordYtoDrawAt);
       }
-      console.log(`Finished calculating correct pixels & filtering colors for the tile ${tileCoords} in ${(performance.now() - timer).toFixed(3) / 1e3} seconds!
+      console.log(`Finished calculating correct pixels & filtering colors for the tile ${tileCoords} in ${(performance.now() - timer2).toFixed(3) / 1e3} seconds!
 There are ${pixelsCorrectTotal} correct pixels.`);
       if (template.chunked32) {
         const errorMapOn = flags.includes("em-on");
@@ -5449,6 +5660,7 @@ There are ${pixelsCorrectTotal} correct pixels.`);
           tolerance: this.paletteTolerance,
           shouldFilter: this.shouldFilterColor,
           drawOverlay: errorMapOn,
+          compactOverlay: true,
           showCorrect: flags.includes("em-correct"),
           showMissing: !flags.includes("em-noMissing")
         });
@@ -5460,11 +5672,14 @@ There are ${pixelsCorrectTotal} correct pixels.`);
           missing: scan.missing
         });
         if (errorMapOn && scan.overlay) {
-          context.drawImage(
-            await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), template.bitmap.width, template.bitmap.height)),
-            coordXtoDrawAt,
-            coordYtoDrawAt
-          );
+          const overlayBitmap = await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), scan.overlayWidth, scan.overlayHeight));
+          if (scan.overlayCompact) {
+            context.imageSmoothingEnabled = false;
+            context.drawImage(overlayBitmap, 0, 0, scan.overlayWidth, scan.overlayHeight, coordXtoDrawAt, coordYtoDrawAt, scan.overlayWidth * this.drawMult, scan.overlayHeight * this.drawMult);
+          } else {
+            context.drawImage(overlayBitmap, coordXtoDrawAt, coordYtoDrawAt);
+          }
+          overlayBitmap.close?.();
         }
       }
       if (typeof template.instance.pixelCount["correct"] == "undefined") {
@@ -5532,7 +5747,7 @@ Use Blue Marble version ${scriptVersion} or load a new template.`);
                 const templateBitmap = await createImageBitmap(templateBlob);
                 templateTiles[tile] = templateBitmap;
                 const canvas = new OffscreenCanvas(actualTileSize, actualTileSize);
-                const context = canvas.getContext("2d");
+                const context = canvas.getContext("2d", { willReadFrequently: true });
                 context.drawImage(templateBitmap, 0, 0);
                 const imageData = context.getImageData(0, 0, templateBitmap.width, templateBitmap.height);
                 templateTiles32[tile] = new Uint32Array(imageData.data.buffer);
@@ -5787,9 +6002,9 @@ Received: ${coordsTile?.[0]}, ${coordsTile?.[1]}, ${coordsPixel?.[0]}, ${coordsP
             tileCoordsTile = [parseInt(tileCoordsTile[tileCoordsTile.length - 2]), parseInt(tileCoordsTile[tileCoordsTile.length - 1].replace(".png", ""))];
             const blobUUID = data["blobID"];
             const blobData = data["blobData"];
-            const timer = Date.now();
+            const timer2 = Date.now();
             const templateBlob = await this.templateManager.drawTemplateOnTile(blobData, tileCoordsTile);
-            console.log(`Finished loading the tile in ${(Date.now() - timer) / 1e3} seconds!`);
+            console.log(`Finished loading the tile in ${(Date.now() - timer2) / 1e3} seconds!`);
             window.postMessage({
               source: "blue-marble",
               blobID: blobUUID,
@@ -6023,6 +6238,9 @@ Received: ${coordsTile?.[0]}, ${coordsTile?.[1]}, ${coordsPixel?.[0]}, ${coordsP
     });
     console.log(`%c${name2}%c: Starting spy code initialization... (1/4)`, consoleStyle2, "");
     window.addEventListener("message", (event) => {
+      if (!event.data || event.data["source"] !== "blue-marble") {
+        return;
+      }
       const { source, endpoint, blobID, blobData, blink } = event.data;
       const elapsed = Date.now() - blink;
       console.groupCollapsed(`%c${name2}%c: ${fetchedBlobQueue.size} Recieved IMAGE message about blob "${blobID}"`, consoleStyle2, "");
@@ -6168,6 +6386,7 @@ Time Since Blink: ${String(Math.floor(elapsed / 6e4)).padStart(2, "0")}:${String
     windowMain.buildWindow();
     const progressTracker = new ProgressTracker(templateManager, settingsManager, apiManager);
     progressTracker.start();
+    startStallMeter();
     initMobileMode(settingsManager, templateManager);
     startKeyboardPan(settingsManager);
     apiManager.spontaneousResponseListener(windowMain);
@@ -6198,41 +6417,60 @@ Time Since Blink: ${String(Math.floor(elapsed / 6e4)).padStart(2, "0")}:${String
     }
     consoleLog(`%c${name}%c (${version}) userscript has loaded!`, "color: cornflowerblue;", "");
     function observeBlack() {
-      const observer = new MutationObserver((mutations, observer2) => {
+      let scheduled = false;
+      let retryNotBefore = 0;
+      let warned = false;
+      const inject2 = () => {
+        scheduled = false;
+        if (Date.now() < retryNotBefore) {
+          return;
+        }
         const black = document.querySelector("#color-1");
         if (!black) {
           return;
         }
-        let move = document.querySelector("#bm-button-move");
-        if (!move) {
-          move = document.createElement("button");
-          move.id = "bm-button-move";
-          move.textContent = "Move \u2191";
-          move.dataset["screenPosition"] = "bottom";
-          move.className = "btn btn-soft";
-          move.onclick = function() {
-            const paletteWindowVisible = this.closest('div:has(dialog):not(:has([id="map"]))');
-            const paletteWindow = paletteWindowVisible.closest('div:is([class~="bottom-0"], [class~="top-0"])');
-            const shouldMoveUp = this.dataset?.["screenPosition"] == "bottom";
-            paletteWindow.className = paletteWindow?.className?.replace(shouldMoveUp ? "bottom-0" : "top-0", shouldMoveUp ? "top-0" : "bottom-0");
-            paletteWindowVisible.style.borderTopLeftRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
-            paletteWindowVisible.style.borderTopRightRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
-            paletteWindowVisible.style.borderBottomLeftRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
-            paletteWindowVisible.style.borderBottomRightRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
-            this.textContent = shouldMoveUp ? "Move \u2193" : "Move \u2191";
-            this.dataset["screenPosition"] = shouldMoveUp ? "top" : "bottom";
-            if (paletteWindowVisible?.getBoundingClientRect()?.width <= 650) {
-              this.textContent = this.textContent.slice(-1);
-            }
-          };
-          const paletteWindowInteractiveUiContainer = black.closest("div[id]:has(h2):has(canvas)");
-          const paletteToolbar = paletteWindowInteractiveUiContainer?.querySelector('div:has(h2) div:has(button):has(div[class~="tooltip"] kbd):not(:has(h2))');
-          if (paletteToolbar) {
-            paletteToolbar.appendChild(move);
-          } else {
-            consoleWarn("Could not find palette toolbar to inject Move button into!");
-          }
+        if (document.querySelector("#bm-button-move")?.isConnected) {
+          return;
         }
+        const paletteWindowInteractiveUiContainer = black.closest("div[id]:has(h2):has(canvas)");
+        const paletteToolbar = paletteWindowInteractiveUiContainer?.querySelector('div:has(h2) div:has(button):has(div[class~="tooltip"] kbd):not(:has(h2))');
+        if (!paletteToolbar) {
+          retryNotBefore = Date.now() + 5e3;
+          if (!warned) {
+            warned = true;
+            consoleWarn("Could not find palette toolbar to inject Move button into! (Wplace may have changed its layout.) Retrying quietly.");
+          }
+          return;
+        }
+        let move;
+        move = document.createElement("button");
+        move.id = "bm-button-move";
+        move.textContent = "Move \u2191";
+        move.dataset["screenPosition"] = "bottom";
+        move.className = "btn btn-soft";
+        move.onclick = function() {
+          const paletteWindowVisible = this.closest('div:has(dialog):not(:has([id="map"]))');
+          const paletteWindow = paletteWindowVisible.closest('div:is([class~="bottom-0"], [class~="top-0"])');
+          const shouldMoveUp = this.dataset?.["screenPosition"] == "bottom";
+          paletteWindow.className = paletteWindow?.className?.replace(shouldMoveUp ? "bottom-0" : "top-0", shouldMoveUp ? "top-0" : "bottom-0");
+          paletteWindowVisible.style.borderTopLeftRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
+          paletteWindowVisible.style.borderTopRightRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
+          paletteWindowVisible.style.borderBottomLeftRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
+          paletteWindowVisible.style.borderBottomRightRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
+          this.textContent = shouldMoveUp ? "Move \u2193" : "Move \u2191";
+          this.dataset["screenPosition"] = shouldMoveUp ? "top" : "bottom";
+          if (paletteWindowVisible?.getBoundingClientRect()?.width <= 650) {
+            this.textContent = this.textContent.slice(-1);
+          }
+        };
+        paletteToolbar.appendChild(move);
+      };
+      const observer = new MutationObserver(() => {
+        if (scheduled) {
+          return;
+        }
+        scheduled = true;
+        setTimeout(inject2, 400);
       });
       observer.observe(document.body, { childList: true, subtree: true });
     }

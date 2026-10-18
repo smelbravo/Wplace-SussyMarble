@@ -22,19 +22,24 @@ const COLOR_CORRECT = 0x6E00C800; // rgba(0, 200, 0, ~0.43)
  * @param {number} params.tolerance - Alpha tolerance used to decide if a pixel is transparent
  * @param {Map<number, boolean>} params.shouldFilter - Palette IDs hidden by the colour filter
  * @param {boolean} [params.drawOverlay=false] - Build the overlay pixel buffer?
+ * @param {boolean} [params.compactOverlay=false] - Build the overlay at 1 pixel per template pixel (9x smaller, draw it scaled up
+ *   with smoothing off). Only wrong/missing blocks; incompatible with `showCorrect`, which needs the full size overlay.
  * @param {boolean} [params.showCorrect=false] - Mark correct pixels (green dot)?
  * @param {boolean} [params.showMissing=true] - Mark missing pixels (yellow)?
  * @param {number} [params.maxList=5000] - Maximum number of coordinates remembered per list
- * @returns {{overlay: Uint32Array|null, wrong: number[], missing: number[], counts: {correct: number, wrong: number, missing: number}}}
+ * @returns {{overlay: Uint32Array|null, overlayCompact: boolean, overlayWidth: number, overlayHeight: number, wrong: number[], missing: number[], counts: {correct: number, wrong: number, missing: number}}}
  *   `wrong` and `missing` are flat arrays of `[x0, y0, colorID0, x1, y1, colorID1, ...]` (tile pixel coordinates 0-999, template palette colour ID)
  */
 export function scanTemplateTile({
   tile32, template32, templateInfo, drawMult, tileWidth, lookup, tolerance, shouldFilter,
-  drawOverlay = false, showCorrect = false, showMissing = true, maxList = 5000
+  drawOverlay = false, compactOverlay = false, showCorrect = false, showMissing = true, maxList = 5000
 }) {
 
   const [offsetX, offsetY, width, height] = templateInfo;
-  const overlay = drawOverlay ? new Uint32Array(width * height) : null;
+  const compact = drawOverlay && compactOverlay && !showCorrect;
+  const blocksWide = Math.ceil(width / drawMult);
+  const blocksHigh = Math.ceil(height / drawMult);
+  const overlay = drawOverlay ? new Uint32Array(compact ? (blocksWide * blocksHigh) : (width * height)) : null;
   const wrong = [];
   const missing = [];
   const counts = {correct: 0, wrong: 0, missing: 0};
@@ -42,6 +47,10 @@ export function scanTemplateTile({
 
   /** Paints the full enlarged pixel block into the overlay */
   const paintBlock = (row, column, color) => {
+    if (compact) { // One overlay pixel per template pixel
+      overlay[(Math.floor(row / drawMult) * blocksWide) + Math.floor(column / drawMult)] = color;
+      return;
+    }
     for (let dy = -half; dy <= half; dy++) {
       const base = (row + dy) * width;
       for (let dx = -half; dx <= half; dx++) {
@@ -93,5 +102,5 @@ export function scanTemplateTile({
     }
   }
 
-  return {overlay: overlay, wrong: wrong, missing: missing, counts: counts};
+  return {overlay: overlay, overlayCompact: compact, overlayWidth: compact ? blocksWide : width, overlayHeight: compact ? blocksHigh : height, wrong: wrong, missing: missing, counts: counts};
 }

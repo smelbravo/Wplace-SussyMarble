@@ -101,6 +101,9 @@ let resultTerser = await terser.minify(resultEsbuildJS.text, {
     ecma: 2020, // Minimum supported ECMAScript version as release year. Note: versions before 2015 should pass in '5'
     dead_code: isGitHub, // Should unreachable code be removed?
     drop_console: isGitHub, // Should console code be removed?
+    // Sussy Marble: the chatty logs (every tile, every message) are removed from the installed build. They cost time, and a console
+    // that is open keeps everything in memory. Warnings and errors are kept. The unminified `For-GreasyFork` build keeps every log for debugging.
+    pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.group', 'console.groupCollapsed', 'console.groupEnd', 'console.table'],
     drop_debugger: isGitHub, // SHould debugger code be removed?
     passes: 2 // How many times terser will compress the code
   }
@@ -182,13 +185,13 @@ const fontfaces = `@font-face{font-family:'Roboto Mono';font-style:normal;font-w
 // Injects Roboto Mono into the JavaScript file
 standaloneBMjs = standaloneBMjs.replace(/robotoMonoInjectionPoint[^'"]*/g, fontfaces);
 
-// Obtains the Favicon to inject
-const favicon = fs.readFileSync('dist/assets/Favicon.png');
+// Obtains the icon to inject (Sussy Squad symbol, 128 px)
+const favicon = fs.readFileSync('dist/assets/SussySquad-icon.png');
 const faviconBase64DataURI = `data:image/png;base64,${favicon.toString('base64')}`;
 
 // Replaces the 2 different types of icon requests with base64
 standaloneBMjs = standaloneBMjs.replace(/\/\/\s+\@icon\s+https.*\r?\n?/g, `// @icon64          ${faviconBase64DataURI}\n`);
-standaloneBMjs = standaloneBMjs.replace(/https[^'"]+dist\/assets\/Favicon\.png[^'"]*/gi, faviconBase64DataURI);
+standaloneBMjs = standaloneBMjs.replace(/https[^'"]+dist\/assets\/SussySquad-icon\.png[^'"]*/gi, faviconBase64DataURI);
 
 // Updates the update/download URLs
 standaloneBMjs = standaloneBMjs.replace(/\/\/\s+\@updateURL\s+https.*\r?\n?/g, `// @updateURL       ${standaloneBMUpdateURL}\n`);

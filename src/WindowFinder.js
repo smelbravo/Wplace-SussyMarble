@@ -1,5 +1,5 @@
 import WindowBase from "./WindowBase";
-import { travelToPixel } from "./pixelTravel";
+import { nearestPixels, travelToPixel } from "./pixelTravel";
 import { localizeNumber } from "./utils";
 
 const MAX_ROWS = 40;
@@ -48,14 +48,9 @@ export default class WindowFinder extends WindowBase {
 
     const all = templateManager.getFinderList(this.kind);
 
-    // Sort by distance to the last pixel the user clicked on the map (if any)
+    // The closest pixels to the last pixel the user clicked on the map (if any), found in a single pass
     const reference = this.apiManager?.coordsTilePixel;
-    if (reference?.length === 4) {
-      const rx = (Number(reference[0]) * 1000) + Number(reference[2]);
-      const ry = (Number(reference[1]) * 1000) + Number(reference[3]);
-      const distance = (pixel) => Math.hypot(((pixel.tileX * 1000) + pixel.pixelX) - rx, ((pixel.tileY * 1000) + pixel.pixelY) - ry);
-      all.sort((a, b) => distance(a) - distance(b));
-    }
+    const shown = nearestPixels(all, reference, MAX_ROWS);
 
     this.summary.textContent = `${this.kind === 'wrong' ? 'Wrong' : 'Missing'} pixels found so far: ${localizeNumber(all.length)}`
       + ((reference?.length === 4) ? ' (nearest to your last clicked pixel first)' : '');
@@ -65,7 +60,7 @@ export default class WindowFinder extends WindowBase {
       this.list.append(this.el('small', {textContent: 'Nothing here. Pan over your template so its tiles load, then refresh.'}));
     }
 
-    for (const pixel of all.slice(0, MAX_ROWS)) {
+    for (const pixel of shown) {
       const button = this.el('button', {
         className: 'bm-sussy-go',
         textContent: `Tl ${pixel.tileX},${pixel.tileY} • Px ${pixel.pixelX},${pixel.pixelY}`

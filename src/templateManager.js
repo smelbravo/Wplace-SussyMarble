@@ -3,7 +3,7 @@ import Template from "./Template";
 import { base64ToUint8, colorpaletteForBlueMarble, consoleError, consoleLog, consoleWarn, localizeNumber, numberToEncoded, sleep, viewCanvasInNewTab } from "./utils";
 import WindowMain from "./WindowMain";
 import WindowWizard from "./WindowWizard";
-import TileCache from "./tileCache";
+import TileCache, { TaskQueue } from "./tileCache";
 import { refreshTiles } from "./mapBridge";
 import { scanTemplateTile } from "./errorMap";
 
@@ -124,6 +124,12 @@ export default class TemplateManager {
     this.finderData = new Map();
     this.templateUIDs = new WeakMap(); // Gives every Template instance a unique number (used by the tile cache signature)
     this.templateUIDCounter = 0;
+    /** Renders one tile at a time: every render needs ~100 MB of temporary memory, and Wplace asks for many tiles at once @type {TaskQueue} */
+    this.renderQueue = new TaskQueue();
+    /** Renders that are queued or running, by cache key, so the same tile is never rendered twice at the same time @type {Map<string, Promise<Blob>>} */
+    this.renderInFlight = new Map();
+    /** The last tile requests with how long each step took, for the diagnostics report @type {Array<Object>} */
+    this.timings = [];
   }
 
   /** Updates the stored instance of the main window.
@@ -527,17 +533,52 @@ export default class TemplateManager {
     // Sussy Marble: the smart tile cache. Skipped if the user turned it off, or no template is on this tile.
     const coordsKey = tileCoords[0].toString().padStart(4, '0') + ',' + tileCoords[1].toString().padStart(4, '0');
     const hasTemplateHere = this.templatesArray.some(template => Object.keys(template.chunked).some(tile => tile.startsWith(coordsKey)));
-    if (flags.includes('tc-off') || !hasTemplateHere) {
-      return this.#renderTile(tileBlob, tileCoords);
+    if (!hasTemplateHere) {return tileBlob;} // Nothing to draw on this tile: skip the whole (expensive) pipeline
+
+    const requestedAt = performance.now();
+    const note = (entry) => {
+      this.timings.push({at: Date.now(), tile: coordsKey, total: Math.round(performance.now() - requestedAt), ...entry});
+      if (this.timings.length > 40) {this.timings.shift();}
+    };
+
+    // One queued render: reports how long it waited for its turn and how long the real work took
+    let queuedAt = performance.now();
+    const job = async () => {
+      const started = performance.now();
+      const blob = await this.#renderTile(tileBlob, tileCoords);
+      return {blob: blob, wait: Math.round(started - queuedAt), render: Math.round(performance.now() - started)};
+    };
+
+    if (flags.includes('tc-off')) {
+      queuedAt = performance.now();
+      const result = await this.renderQueue.run(job);
+      note({kind: 'render (cache off)', wait: result.wait, render: result.render});
+      return result.blob;
     }
 
+    const keyStarted = performance.now();
     const cacheKey = await this.tileCache.makeKey(tileBlob, coordsKey, this.#renderSignature(flags));
+    const keyMs = Math.round(performance.now() - keyStarted);
     const cached = this.tileCache.get(cacheKey);
-    if (cached) {return cached;}
+    if (cached) {note({kind: 'cache hit', key: keyMs}); return cached;}
 
-    const rendered = await this.#renderTile(tileBlob, tileCoords);
-    this.tileCache.set(cacheKey, rendered);
-    return rendered;
+    // The same tile may be requested again while it is still being rendered: share that one render
+    let pending = this.renderInFlight.get(cacheKey);
+    if (pending) {
+      const blob = await pending;
+      note({kind: 'shared a render in progress', key: keyMs});
+      return blob;
+    }
+    queuedAt = performance.now(); // The wait is counted from here, so it does not include the hashing above
+    pending = this.renderQueue.run(job)
+      .then((result) => {
+        this.tileCache.set(cacheKey, result.blob);
+        note({kind: 'render', key: keyMs, wait: result.wait, render: result.render});
+        return result.blob;
+      })
+      .finally(() => this.renderInFlight.delete(cacheKey));
+    this.renderInFlight.set(cacheKey, pending);
+    return pending;
   }
 
   /** Builds a string that changes whenever something that affects the rendered tile changes.
@@ -661,7 +702,7 @@ export default class TemplateManager {
     const tileBitmap = await createImageBitmap(tileBlob);
 
     const canvas = new OffscreenCanvas(drawSize, drawSize);
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true }); // Sussy Marble: this canvas is read back with getImageData() on every render
 
     context.imageSmoothingEnabled = false; // Nearest neighbor
 
@@ -773,6 +814,7 @@ export default class TemplateManager {
           tolerance: this.paletteTolerance,
           shouldFilter: this.shouldFilterColor,
           drawOverlay: errorMapOn,
+          compactOverlay: true,
           showCorrect: flags.includes('em-correct'),
           showMissing: !flags.includes('em-noMissing')
         });
@@ -786,10 +828,15 @@ export default class TemplateManager {
         });
 
         if (errorMapOn && scan.overlay) {
-          context.drawImage(
-            await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), template.bitmap.width, template.bitmap.height)),
-            coordXtoDrawAt, coordYtoDrawAt
-          );
+          const overlayBitmap = await createImageBitmap(new ImageData(new Uint8ClampedArray(scan.overlay.buffer), scan.overlayWidth, scan.overlayHeight));
+          if (scan.overlayCompact) {
+            // 1 overlay pixel per template pixel: scale it up with smoothing off (9x less memory and CPU than a full size overlay)
+            context.imageSmoothingEnabled = false;
+            context.drawImage(overlayBitmap, 0, 0, scan.overlayWidth, scan.overlayHeight, coordXtoDrawAt, coordYtoDrawAt, scan.overlayWidth * this.drawMult, scan.overlayHeight * this.drawMult);
+          } else {
+            context.drawImage(overlayBitmap, coordXtoDrawAt, coordYtoDrawAt);
+          }
+          overlayBitmap.close?.();
         }
       }
       // ----- End of Sussy Marble additions -----
@@ -925,7 +972,7 @@ export default class TemplateManager {
   
                 // Converts to Uint32Array
                 const canvas = new OffscreenCanvas(actualTileSize, actualTileSize);
-                const context = canvas.getContext('2d');
+                const context = canvas.getContext('2d', { willReadFrequently: true }); // Sussy Marble: read back right below
                 context.drawImage(templateBitmap, 0, 0);
                 const imageData = context.getImageData(0, 0, templateBitmap.width, templateBitmap.height);
                 templateTiles32[tile] = new Uint32Array(imageData.data.buffer);
