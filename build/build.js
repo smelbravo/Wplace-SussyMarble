@@ -185,13 +185,13 @@ const fontfaces = `@font-face{font-family:'Roboto Mono';font-style:normal;font-w
 // Injects Roboto Mono into the JavaScript file
 standaloneBMjs = standaloneBMjs.replace(/robotoMonoInjectionPoint[^'"]*/g, fontfaces);
 
-// Obtains the Favicon to inject
-const favicon = fs.readFileSync('dist/assets/Favicon.png');
+// Obtains the icon to inject (Sussy Squad symbol, 128 px)
+const favicon = fs.readFileSync('dist/assets/SussySquad-icon.png');
 const faviconBase64DataURI = `data:image/png;base64,${favicon.toString('base64')}`;
 
 // Replaces the 2 different types of icon requests with base64
 standaloneBMjs = standaloneBMjs.replace(/\/\/\s+\@icon\s+https.*\r?\n?/g, `// @icon64          ${faviconBase64DataURI}\n`);
-standaloneBMjs = standaloneBMjs.replace(/https[^'"]+dist\/assets\/Favicon\.png[^'"]*/gi, faviconBase64DataURI);
+standaloneBMjs = standaloneBMjs.replace(/https[^'"]+dist\/assets\/SussySquad-icon\.png[^'"]*/gi, faviconBase64DataURI);
 
 // Updates the update/download URLs
 standaloneBMjs = standaloneBMjs.replace(/\/\/\s+\@updateURL\s+https.*\r?\n?/g, `// @updateURL       ${standaloneBMUpdateURL}\n`);

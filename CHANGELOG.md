@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.5
+- **Tampermonkey icon:** the installed script now shows the Sussy Squad symbol instead of the old red marble. The Standalone build had the old `Favicon.png` hard-wired as its icon. It now embeds `dist/assets/SussySquad-icon.png` (128 px), and the other builds point to the same file.
+
 ## 1.0.4
 **Fixes a freeze of 20-30 seconds that happened with Tampermonkey on Firefox.**
 - The smart tile cache fingerprinted every tile by looping over each of its bytes in JavaScript (about a million per tile), on every tile request. Blue Marble never does this. Userscript managers such as Tampermonkey on Firefox wrap the page's data in a protective layer, which makes every single byte access very slow, so the page froze. The fingerprint is now computed by the browser's built-in SHA-1 (a single native call), with a tiny sampled fingerprint as a fallback. Changing even one pixel of a tile always changes the fingerprint (tested).
