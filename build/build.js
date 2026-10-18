@@ -101,6 +101,9 @@ let resultTerser = await terser.minify(resultEsbuildJS.text, {
     ecma: 2020, // Minimum supported ECMAScript version as release year. Note: versions before 2015 should pass in '5'
     dead_code: isGitHub, // Should unreachable code be removed?
     drop_console: isGitHub, // Should console code be removed?
+    // Sussy Marble: the chatty logs (every tile, every message) are removed from the installed build. They cost time, and a console
+    // that is open keeps everything in memory. Warnings and errors are kept. The unminified `For-GreasyFork` build keeps every log for debugging.
+    pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.group', 'console.groupCollapsed', 'console.groupEnd', 'console.table'],
     drop_debugger: isGitHub, // SHould debugger code be removed?
     passes: 2 // How many times terser will compress the code
   }

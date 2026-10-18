@@ -2,7 +2,7 @@
 // @name            Sussy Marble
 // @name:en         Sussy Marble
 // @namespace       https://github.com/smelbravo/
-// @version         1.0.1
+// @version         1.0.2
 // @description     Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @description:en  Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @author          smelbravo (fork) | SwingTheVine (Blue Marble) | Seris0 (Skirk Marble) | t-wy (Userscripts fork)
@@ -6111,6 +6111,9 @@ Received: ${coordsTile?.[0]}, ${coordsTile?.[1]}, ${coordsPixel?.[0]}, ${coordsP
     });
     console.log(`%c${name2}%c: Starting spy code initialization... (1/4)`, consoleStyle2, "");
     window.addEventListener("message", (event) => {
+      if (!event.data || event.data["source"] !== "blue-marble") {
+        return;
+      }
       const { source, endpoint, blobID, blobData, blink } = event.data;
       const elapsed = Date.now() - blink;
       console.groupCollapsed(`%c${name2}%c: ${fetchedBlobQueue.size} Recieved IMAGE message about blob "${blobID}"`, consoleStyle2, "");
@@ -6286,41 +6289,60 @@ Time Since Blink: ${String(Math.floor(elapsed / 6e4)).padStart(2, "0")}:${String
     }
     consoleLog(`%c${name}%c (${version}) userscript has loaded!`, "color: cornflowerblue;", "");
     function observeBlack() {
-      const observer = new MutationObserver((mutations, observer2) => {
+      let scheduled = false;
+      let retryNotBefore = 0;
+      let warned = false;
+      const inject2 = () => {
+        scheduled = false;
+        if (Date.now() < retryNotBefore) {
+          return;
+        }
         const black = document.querySelector("#color-1");
         if (!black) {
           return;
         }
-        let move = document.querySelector("#bm-button-move");
-        if (!move) {
-          move = document.createElement("button");
-          move.id = "bm-button-move";
-          move.textContent = "Move \u2191";
-          move.dataset["screenPosition"] = "bottom";
-          move.className = "btn btn-soft";
-          move.onclick = function() {
-            const paletteWindowVisible = this.closest('div:has(dialog):not(:has([id="map"]))');
-            const paletteWindow = paletteWindowVisible.closest('div:is([class~="bottom-0"], [class~="top-0"])');
-            const shouldMoveUp = this.dataset?.["screenPosition"] == "bottom";
-            paletteWindow.className = paletteWindow?.className?.replace(shouldMoveUp ? "bottom-0" : "top-0", shouldMoveUp ? "top-0" : "bottom-0");
-            paletteWindowVisible.style.borderTopLeftRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
-            paletteWindowVisible.style.borderTopRightRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
-            paletteWindowVisible.style.borderBottomLeftRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
-            paletteWindowVisible.style.borderBottomRightRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
-            this.textContent = shouldMoveUp ? "Move \u2193" : "Move \u2191";
-            this.dataset["screenPosition"] = shouldMoveUp ? "top" : "bottom";
-            if (paletteWindowVisible?.getBoundingClientRect()?.width <= 650) {
-              this.textContent = this.textContent.slice(-1);
-            }
-          };
-          const paletteWindowInteractiveUiContainer = black.closest("div[id]:has(h2):has(canvas)");
-          const paletteToolbar = paletteWindowInteractiveUiContainer?.querySelector('div:has(h2) div:has(button):has(div[class~="tooltip"] kbd):not(:has(h2))');
-          if (paletteToolbar) {
-            paletteToolbar.appendChild(move);
-          } else {
-            consoleWarn("Could not find palette toolbar to inject Move button into!");
-          }
+        if (document.querySelector("#bm-button-move")?.isConnected) {
+          return;
         }
+        const paletteWindowInteractiveUiContainer = black.closest("div[id]:has(h2):has(canvas)");
+        const paletteToolbar = paletteWindowInteractiveUiContainer?.querySelector('div:has(h2) div:has(button):has(div[class~="tooltip"] kbd):not(:has(h2))');
+        if (!paletteToolbar) {
+          retryNotBefore = Date.now() + 5e3;
+          if (!warned) {
+            warned = true;
+            consoleWarn("Could not find palette toolbar to inject Move button into! (Wplace may have changed its layout.) Retrying quietly.");
+          }
+          return;
+        }
+        let move;
+        move = document.createElement("button");
+        move.id = "bm-button-move";
+        move.textContent = "Move \u2191";
+        move.dataset["screenPosition"] = "bottom";
+        move.className = "btn btn-soft";
+        move.onclick = function() {
+          const paletteWindowVisible = this.closest('div:has(dialog):not(:has([id="map"]))');
+          const paletteWindow = paletteWindowVisible.closest('div:is([class~="bottom-0"], [class~="top-0"])');
+          const shouldMoveUp = this.dataset?.["screenPosition"] == "bottom";
+          paletteWindow.className = paletteWindow?.className?.replace(shouldMoveUp ? "bottom-0" : "top-0", shouldMoveUp ? "top-0" : "bottom-0");
+          paletteWindowVisible.style.borderTopLeftRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
+          paletteWindowVisible.style.borderTopRightRadius = shouldMoveUp ? "0px" : "var(--radius-box)";
+          paletteWindowVisible.style.borderBottomLeftRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
+          paletteWindowVisible.style.borderBottomRightRadius = shouldMoveUp ? "var(--radius-box)" : "0px";
+          this.textContent = shouldMoveUp ? "Move \u2193" : "Move \u2191";
+          this.dataset["screenPosition"] = shouldMoveUp ? "top" : "bottom";
+          if (paletteWindowVisible?.getBoundingClientRect()?.width <= 650) {
+            this.textContent = this.textContent.slice(-1);
+          }
+        };
+        paletteToolbar.appendChild(move);
+      };
+      const observer = new MutationObserver(() => {
+        if (scheduled) {
+          return;
+        }
+        scheduled = true;
+        setTimeout(inject2, 400);
       });
       observer.observe(document.body, { childList: true, subtree: true });
     }

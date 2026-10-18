@@ -78,6 +78,10 @@ const injectionCode = () => {
   console.log(`%c${name}%c: Starting spy code initialization... (1/4)`, consoleStyle, '');
 
   window.addEventListener('message', (event) => {
+    // Sussy Marble: the page posts many messages that have nothing to do with us (and so does the map bridge).
+    // This used to log 4 console lines for every single one of them. Now they are ignored before anything is logged.
+    if (!event.data || (event.data['source'] !== 'blue-marble')) {return;}
+
     const { source, endpoint, blobID, blobData, blink } = event.data;
 
     const elapsed = Date.now() - blink;
@@ -376,16 +380,42 @@ if (document.readyState === 'loading') {
    * @since 0.66.3
    */
   function observeBlack() {
-    const observer = new MutationObserver((mutations, observer) => {
+
+    // Sussy Marble: this used to run on EVERY change of the page, and the palette changes constantly while painting.
+    // Each run searched with heavy `:has()` selectors and, when Wplace's toolbar was not found, built a button that was
+    // thrown away, then warned again. Now it runs at most every 400 ms, only looks for the toolbar when the button is
+    // missing, waits 5 s after a failed search, and warns only once.
+    let scheduled = false;
+    let retryNotBefore = 0;
+    let warned = false;
+
+    const inject = () => {
+      scheduled = false;
+      if (Date.now() < retryNotBefore) {return;}
 
       const black = document.querySelector('#color-1'); // Attempt to retrieve the black color element for anchoring
-
       if (!black) {return;} // Black color does not exist yet. Returns early
 
-      let move = document.querySelector('#bm-button-move'); // Tries to find the move button
+      // Already injected and still in the page: nothing to do (the common case, and it is cheap)
+      if (document.querySelector('#bm-button-move')?.isConnected) {return;}
 
-      // If the move button does not exist, we make a new one
-      if (!move) {
+      // Obtains the palette window's container, which holds all interactive elements in the window
+      // Obtains the palette window's toolbar, which holds the non-palette of buttons
+      const paletteWindowInteractiveUiContainer = black.closest('div[id]:has(h2):has(canvas)');
+      const paletteToolbar = paletteWindowInteractiveUiContainer?.querySelector('div:has(h2) div:has(button):has(div[class~="tooltip"] kbd):not(:has(h2))');
+
+      // No toolbar: build nothing, back off, and only warn once
+      if (!paletteToolbar) {
+        retryNotBefore = Date.now() + 5000;
+        if (!warned) {
+          warned = true;
+          consoleWarn('Could not find palette toolbar to inject Move button into! (Wplace may have changed its layout.) Retrying quietly.');
+        }
+        return;
+      }
+
+      // The toolbar exists, so we make the Move button and add it
+      let move;
         move = document.createElement('button');
         move.id = 'bm-button-move';
         move.textContent = 'Move ↑';
@@ -414,18 +444,13 @@ if (document.readyState === 'loading') {
           if (paletteWindowVisible?.getBoundingClientRect()?.width <= 650) {this.textContent = this.textContent.slice(-1);}
         }
 
-        // Obtains the palette window's container, which holds all interactive elements in the window
-        // Obtains the palette window's toolbar, which holds the non-palette of buttons
-        const paletteWindowInteractiveUiContainer = black.closest('div[id]:has(h2):has(canvas)');
-        const paletteToolbar = paletteWindowInteractiveUiContainer?.querySelector('div:has(h2) div:has(button):has(div[class~="tooltip"] kbd):not(:has(h2))');
-        
-        // If the toolbar exists, we add the move button to it
-        if (paletteToolbar) {
-          paletteToolbar.appendChild(move); // Adds the "Move" button
-        } else {
-          consoleWarn('Could not find palette toolbar to inject Move button into!');
-        }
-      }
+      paletteToolbar.appendChild(move); // Adds the "Move" button
+    };
+
+    const observer = new MutationObserver(() => {
+      if (scheduled) {return;}
+      scheduled = true;
+      setTimeout(inject, 400);
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
