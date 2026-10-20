@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 (experimental)
+- **Capture art as a template** (📚 → 🖼️): turns art that is already painted on the canvas into a template, without downloading and re-uploading anything.
+  1. Pick two opposite corners (📍 uses the last pixel you clicked, or paste coordinates like `972 785 440 68`).
+  2. Press Preview to see exactly what will be captured, with every color listed. Tick a color to make it transparent (for example a background you do not want to protect).
+  3. Name it and press Create. The template is placed at the top-left corner of the capture. Download PNG is there too, and shows the line to add to `alliance-pack.json` so the whole alliance gets it.
+  It captures the canvas as it is at that moment, so check the preview first. Tested end to end in a real browser: art crossing a tile border is captured exactly, the new template starts at 100% correct, and a single repainted pixel is reported as exactly one wrong pixel.
+
 ## 1.1.0 (experimental)
 Working with many templates at once, built for alliances.
 

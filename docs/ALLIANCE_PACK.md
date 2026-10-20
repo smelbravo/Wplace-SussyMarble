@@ -56,3 +56,7 @@ Up to 100 templates, each image up to 8 MB and 4,000,000 pixels, `https://` link
 - *"Could not read the pack (HTTP 404)"*: the link is wrong, or the repository is not public.
 - Tampermonkey asks permission to connect to another site: that happens when the images are hosted somewhere other than `raw.githubusercontent.com`. Allow it if you trust the host.
 - A template does not appear on tiles that were already on screen: move the map or reload the page.
+
+## Adding art that is already on the map
+
+Painted something without a template? Open **📚 Templates → 🖼️ Capture art as template**, pick the two corners, preview, and create it. Press **Download PNG** and put the file in `templates/`, then paste the line the window shows into `alliance-pack.json` (and raise the pack `version`), so everybody gets it.
