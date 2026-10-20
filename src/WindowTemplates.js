@@ -1,4 +1,5 @@
 import WindowBase from "./WindowBase";
+import WindowCapture from "./WindowCapture";
 import { BRAND } from "./branding";
 import { httpGetBlob, httpGetText } from "./gm";
 import { downloadCanvas, loadTileFromWplace, rectFromCorners, rectInfo, renderArea, templateBounds } from "./mapExport";
@@ -83,8 +84,17 @@ export default class WindowTemplates extends WindowBase {
       this.#exportRect(rect, 'wplace-area');
     };
 
+    const capture = this.el('button', {textContent: '🖼️ Capture art as template', title: 'Turn art that is already painted on the canvas into a template'});
+    capture.onclick = () => {
+      const windowCapture = new WindowCapture(this.name, this.version);
+      windowCapture.setSettingsManager(this.settingsManager);
+      windowCapture.setApiManager(this.apiManager);
+      windowCapture.buildWindow();
+    };
+
     content.append(
       this.el('div', {className: 'bm-container bm-sussy-row'}, allOn, allOff),
+      this.el('div', {className: 'bm-container bm-sussy-row'}, capture),
       this.el('div', {className: 'bm-container bm-sussy-row'}, repair),
       this.list, this.el('hr'), this.note, this.el('hr'),
       this.el('h2', {textContent: '📦 Alliance pack'}),

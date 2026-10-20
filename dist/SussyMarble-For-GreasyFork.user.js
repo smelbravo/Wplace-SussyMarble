@@ -2,7 +2,7 @@
 // @name            Sussy Marble
 // @name:en         Sussy Marble
 // @namespace       https://github.com/smelbravo/
-// @version         1.1.0
+// @version         1.2.0
 // @description     Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @description:en  Sussy Marble is an alliance-flavoured fork of Blue Marble for Wplace.live: template overlay, error map, progress tracker, location search & favorites, wrong/missing pixel finder, tile cache and more.
 // @author          smelbravo (fork) | SwingTheVine (Blue Marble) | Seris0 (Skirk Marble) | t-wy (Userscripts fork)
@@ -3613,8 +3613,8 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
     calculateCoordsFromChunked() {
       let topLeftCoord = [Infinity, Infinity, Infinity, Infinity];
       const tileKeys = Object.keys(this.chunked).sort();
-      tileKeys.forEach((key, index) => {
-        const [tileX, tileY, pixelX, pixelY] = key.split(",").map(Number);
+      tileKeys.forEach((key2, index) => {
+        const [tileX, tileY, pixelX, pixelY] = key2.split(",").map(Number);
         if (tileY < topLeftCoord[1] || tileY == topLeftCoord[1] && tileX < topLeftCoord[0]) {
           topLeftCoord = [tileX, tileY, pixelX, pixelY];
         }
@@ -3921,8 +3921,8 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
     GM.deleteValue("bmCoords");
     const templates = this.currentJSON?.templates;
     if (Object.keys(templates).length > 0) {
-      for (const [key, template] of Object.entries(templates)) {
-        if (templates.hasOwnProperty(key)) {
+      for (const [key2, template] of Object.entries(templates)) {
+        if (templates.hasOwnProperty(key2)) {
           const _template = new Template({
             displayName: template.name,
             chunked: template.tiles
@@ -4058,9 +4058,9 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
     }
     return response.blob();
   }
-  async function storageGetJSON(key, fallback) {
+  async function storageGetJSON(key2, fallback) {
     try {
-      const raw = await GM.getValue(key, "");
+      const raw = await GM.getValue(key2, "");
       if (!raw) {
         return fallback;
       }
@@ -4069,9 +4069,9 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
       return fallback;
     }
   }
-  async function storageSetJSON(key, value) {
+  async function storageSetJSON(key2, value) {
     try {
-      await GM.setValue(key, JSON.stringify(value));
+      await GM.setValue(key2, JSON.stringify(value));
     } catch (error) {
       console.warn("Could not save to storage:", error);
     }
@@ -4362,6 +4362,63 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
     }
   };
 
+  // src/capture.js
+  var key = (r, g, b) => r << 16 | g << 8 | b;
+  function buildPaletteLookup(palette) {
+    const lookup = /* @__PURE__ */ new Map();
+    for (const color of palette) {
+      if (!(color.id > 0)) {
+        continue;
+      }
+      lookup.set(key(color.rgb[0], color.rgb[1], color.rgb[2]), color.id);
+    }
+    return lookup;
+  }
+  function analyzeColors(data, palette) {
+    const lookup = buildPaletteLookup(palette);
+    const counts = /* @__PURE__ */ new Map();
+    let other = 0;
+    let opaque = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 3) {
+        continue;
+      }
+      opaque++;
+      const id = lookup.get(key(data[i], data[i + 1], data[i + 2]));
+      if (id === void 0) {
+        other++;
+        continue;
+      }
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return { counts, other, opaque };
+  }
+  function applyExclusions(source, target, palette, excluded) {
+    const lookup = buildPaletteLookup(palette);
+    let kept = 0;
+    for (let i = 0; i < source.length; i += 4) {
+      const id = lookup.get(key(source[i], source[i + 1], source[i + 2]));
+      const remove = source[i + 3] < 3 || id !== void 0 && excluded.has(id);
+      target[i] = source[i];
+      target[i + 1] = source[i + 1];
+      target[i + 2] = source[i + 2];
+      target[i + 3] = remove ? 0 : source[i + 3];
+      if (!remove) {
+        kept++;
+      }
+    }
+    return kept;
+  }
+  function rectToCoords(rect) {
+    return [Math.floor(rect.x0 / 1e3), Math.floor(rect.y0 / 1e3), rect.x0 % 1e3, rect.y0 % 1e3];
+  }
+  function safeName(name2) {
+    return String(name2 ?? "").trim().replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "template";
+  }
+  function packSnippet(name2, coords) {
+    return `{ "name": ${JSON.stringify(String(name2).trim().slice(0, 60))}, "coords": [${coords.join(", ")}], "image": "templates/${safeName(name2)}.png" }`;
+  }
+
   // src/mapExport.js
   var TILE = 1e3;
   var MAX_PIXELS = 12e6;
@@ -4381,8 +4438,8 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
     let y0 = Infinity;
     let x1 = -Infinity;
     let y1 = -Infinity;
-    for (const [key, bitmap] of Object.entries(template?.chunked ?? {})) {
-      const [tx, ty, ox, oy] = key.split(",").map(Number);
+    for (const [key2, bitmap] of Object.entries(template?.chunked ?? {})) {
+      const [tx, ty, ox, oy] = key2.split(",").map(Number);
       if (![tx, ty, ox, oy].every(Number.isFinite) || !bitmap?.width) {
         continue;
       }
@@ -4481,6 +4538,213 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
       }, "image/png");
     });
   }
+
+  // src/WindowCapture.js
+  var _WindowCapture_instances, setStatus_fn2, rect_fn, updateSize_fn, preview_fn, renderColors_fn, applyExclusions_fn, create_fn, download_fn;
+  var WindowCapture = class extends WindowBase {
+    constructor(name2, version2) {
+      super(name2, version2, "bm-window-capture", "Capture art as template");
+      __privateAdd(this, _WindowCapture_instances);
+      this.loadTile = loadTileFromWplace;
+      this.capture = null;
+      this.excluded = /* @__PURE__ */ new Set();
+    }
+    buildWindow() {
+      const content = this.createShell();
+      if (!content) {
+        return;
+      }
+      const cornerInput = (placeholder) => this.el("input", { type: "text", className: "bm-sussy-input", placeholder, maxLength: 60 });
+      const lastClicked = (input) => {
+        const button = this.el("button", { className: "bm-button-circle", textContent: "\u{1F4CD}", title: "Use the last pixel you clicked on the map" });
+        button.onclick = () => {
+          const coords = this.apiManager?.coordsTilePixel;
+          if (coords?.length === 4) {
+            input.value = coords.join(", ");
+            __privateMethod(this, _WindowCapture_instances, updateSize_fn).call(this);
+          } else {
+            __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, "Click a pixel on the map first (close the paint palette if it is open).");
+          }
+        };
+        return button;
+      };
+      this.inputA = cornerInput("Corner A: Tl X, Tl Y, Px X, Px Y");
+      this.inputB = cornerInput("Corner B: Tl X, Tl Y, Px X, Px Y");
+      this.inputA.addEventListener("input", () => __privateMethod(this, _WindowCapture_instances, updateSize_fn).call(this));
+      this.inputB.addEventListener("input", () => __privateMethod(this, _WindowCapture_instances, updateSize_fn).call(this));
+      this.sizeInfo = this.el("small", { className: "bm-sussy-status" });
+      const previewButton = this.el("button", { textContent: "\u{1F441} Preview" });
+      previewButton.onclick = () => __privateMethod(this, _WindowCapture_instances, preview_fn).call(this);
+      this.previewBox = this.el("div", { style: "margin: 0.4em 0;" });
+      this.colorList = this.el("div", { className: "bm-sussy-list", style: "max-height: 160px;" });
+      this.keptInfo = this.el("small", { className: "bm-sussy-status" });
+      this.nameInput = this.el("input", { type: "text", className: "bm-sussy-input", placeholder: "Name of the template", maxLength: 60 });
+      this.createButton = this.el("button", { textContent: "\u2795 Create template", disabled: true });
+      this.downloadButton = this.el("button", { textContent: "\u2B07\uFE0F Download PNG", disabled: true });
+      this.createButton.onclick = () => __privateMethod(this, _WindowCapture_instances, create_fn).call(this);
+      this.downloadButton.onclick = () => __privateMethod(this, _WindowCapture_instances, download_fn).call(this);
+      this.status = this.el("small", { className: "bm-sussy-status", style: "white-space: pre-wrap;" });
+      this.snippet = this.el("textarea", { readOnly: true, rows: 3, style: "width: 100%; box-sizing: border-box; font-size: 11px; display: none;" });
+      content.append(
+        this.el("small", { className: "bm-sussy-status", textContent: "1. Click two opposite corners of the art on the map (use \u{1F4CD}), or paste the coordinates. Both corners are included." }),
+        this.el("div", { className: "bm-container bm-sussy-row" }, this.inputA, lastClicked(this.inputA)),
+        this.el("div", { className: "bm-container bm-sussy-row" }, this.inputB, lastClicked(this.inputB)),
+        this.sizeInfo,
+        this.el("small", { className: "bm-sussy-status", textContent: "2. Check what will be captured:" }),
+        this.el("div", { className: "bm-container bm-sussy-row" }, previewButton),
+        this.previewBox,
+        this.colorList,
+        this.keptInfo,
+        this.el("hr"),
+        this.el("small", { className: "bm-sussy-status", textContent: "3. Name it and create the template. It captures the canvas as it is right now." }),
+        this.nameInput,
+        this.el("div", { className: "bm-container bm-sussy-row" }, this.createButton, this.downloadButton),
+        this.status,
+        this.snippet
+      );
+    }
+  };
+  _WindowCapture_instances = new WeakSet();
+  setStatus_fn2 = function(text) {
+    if (this.status) {
+      this.status.textContent = text;
+    }
+  };
+  /** Reads the two corner boxes. @returns {{x0: number, y0: number, x1: number, y1: number} | undefined} */
+  rect_fn = function() {
+    const a = parseLocationText(this.inputA.value);
+    const b = parseLocationText(this.inputB.value);
+    if (a?.type !== "canvas" || b?.type !== "canvas") {
+      return void 0;
+    }
+    return rectFromCorners(a.coords, b.coords);
+  };
+  updateSize_fn = function() {
+    const rect = __privateMethod(this, _WindowCapture_instances, rect_fn).call(this);
+    if (!rect) {
+      this.sizeInfo.textContent = "";
+      return;
+    }
+    const info = rectInfo(rect);
+    this.sizeInfo.textContent = `${info.width} x ${info.height} pixels (${localizeNumber(info.width * info.height)}) \u2022 ${info.tiles} tile(s)`;
+  };
+  preview_fn = async function() {
+    const rect = __privateMethod(this, _WindowCapture_instances, rect_fn).call(this);
+    if (!rect) {
+      __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, "Both corners need 4 numbers: Tl X, Tl Y, Px X, Px Y.");
+      return;
+    }
+    const info = rectInfo(rect);
+    if (info.width * info.height > Math.min(MAX_PIXELS, 4e6)) {
+      __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, `That area is too big (${info.width} x ${info.height}). The limit is 4,000,000 pixels.`);
+      return;
+    }
+    this.createButton.disabled = true;
+    this.downloadButton.disabled = true;
+    __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, `Downloading ${info.tiles} tile(s)...`);
+    try {
+      const canvas = await renderArea({
+        rect,
+        loadTile: this.loadTile,
+        makeCanvas: (width, height) => {
+          const element = document.createElement("canvas");
+          element.width = width;
+          element.height = height;
+          return element;
+        },
+        onProgress: (done, total) => __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, `Downloading tiles ${done}/${total}...`)
+      });
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const original = new Uint8ClampedArray(context.getImageData(0, 0, canvas.width, canvas.height).data);
+      this.capture = { canvas, context, original, rect, coords: rectToCoords(rect) };
+      this.excluded = /* @__PURE__ */ new Set();
+      canvas.style.cssText = "width: 100%; max-height: 220px; object-fit: contain; image-rendering: pixelated; background: repeating-conic-gradient(#555 0% 25%, #777 0% 50%) 50% / 12px 12px;";
+      this.previewBox.replaceChildren(canvas);
+      __privateMethod(this, _WindowCapture_instances, renderColors_fn).call(this);
+      __privateMethod(this, _WindowCapture_instances, applyExclusions_fn).call(this);
+      __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, "");
+    } catch (error) {
+      this.capture = null;
+      __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, String(error?.message ?? error));
+    }
+  };
+  /** The list of colors found, each with a "make transparent" box */
+  renderColors_fn = function() {
+    const analysis = analyzeColors(this.capture.original, colorpalette);
+    this.colorList.replaceChildren();
+    const rows = [...analysis.counts.entries()].sort((a, b) => b[1] - a[1]);
+    for (const [id, count] of rows) {
+      const color = colorpalette.find((entry) => entry.id === id);
+      const box = this.el("input", { type: "checkbox", title: "Make this color transparent (it will not be part of the template)" });
+      box.onchange = () => {
+        if (box.checked) {
+          this.excluded.add(id);
+        } else {
+          this.excluded.delete(id);
+        }
+        __privateMethod(this, _WindowCapture_instances, applyExclusions_fn).call(this);
+      };
+      const swatch = this.el("span", { style: `display: inline-block; width: 1.2em; height: 1.2em; border: 1px solid #fff8; background: rgb(${color.rgb.join(",")});` });
+      this.colorList.append(this.el(
+        "label",
+        { className: "bm-sussy-row", style: "cursor: pointer;" },
+        box,
+        swatch,
+        this.el("small", { textContent: `#${id} ${color.name} \u2022 ${localizeNumber(count)} px` })
+      ));
+    }
+    if (analysis.other) {
+      this.colorList.append(this.el("small", { className: "bm-sussy-status", textContent: `\u26A0 ${localizeNumber(analysis.other)} painted pixels are not exact palette colors.` }));
+    }
+    if (rows.length) {
+      this.colorList.prepend(this.el("small", { className: "bm-sussy-status", textContent: "Tick a color to make it transparent (for example a background you do not want to protect):" }));
+    }
+  };
+  applyExclusions_fn = function() {
+    const { canvas, context, original } = this.capture;
+    const image = context.createImageData(canvas.width, canvas.height);
+    const kept = applyExclusions(original, image.data, colorpalette, this.excluded);
+    context.putImageData(image, 0, 0);
+    this.keptInfo.textContent = `The template will have ${localizeNumber(kept)} pixels.`;
+    this.createButton.disabled = kept === 0;
+    this.downloadButton.disabled = kept === 0;
+  };
+  create_fn = async function() {
+    if (!this.capture) {
+      return;
+    }
+    const name2 = this.nameInput.value.trim() || `Captured ${this.capture.coords.join("-")}`;
+    const templateManager = this.apiManager?.templateManager;
+    if (!templateManager) {
+      return;
+    }
+    this.createButton.disabled = true;
+    try {
+      const blob = await new Promise((resolve, reject) => this.capture.canvas.toBlob((result) => result ? resolve(result) : reject(new Error("Could not create the image.")), "image/png"));
+      await templateManager.createTemplate(blob, name2, this.capture.coords);
+      __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, `Template "${name2}" created at Tl ${this.capture.coords[0]},${this.capture.coords[1]} \u2022 Px ${this.capture.coords[2]},${this.capture.coords[3]}.
+To share it with the alliance: download the PNG, put it in templates/ and add the line below to alliance-pack.json.`);
+      this.snippet.value = packSnippet(name2, this.capture.coords);
+      this.snippet.style.display = "";
+    } catch (error) {
+      __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, String(error?.message ?? error));
+    } finally {
+      this.createButton.disabled = false;
+    }
+  };
+  download_fn = async function() {
+    if (!this.capture) {
+      return;
+    }
+    const name2 = this.nameInput.value.trim() || `Captured ${this.capture.coords.join("-")}`;
+    try {
+      await downloadCanvas(this.capture.canvas, `${safeName(name2)}.png`);
+      this.snippet.value = packSnippet(name2, this.capture.coords);
+      this.snippet.style.display = "";
+    } catch (error) {
+      __privateMethod(this, _WindowCapture_instances, setStatus_fn2).call(this, String(error?.message ?? error));
+    }
+  };
 
   // src/packLoader.js
   var PACK_LIMITS = Object.freeze({
@@ -4704,8 +4968,16 @@ Getting Y ${pixelY}-${pixelY + drawSizeY}`);
         }
         __privateMethod(this, _WindowTemplates_instances, exportRect_fn).call(this, rect, "wplace-area");
       };
+      const capture = this.el("button", { textContent: "\u{1F5BC}\uFE0F Capture art as template", title: "Turn art that is already painted on the canvas into a template" });
+      capture.onclick = () => {
+        const windowCapture = new WindowCapture(this.name, this.version);
+        windowCapture.setSettingsManager(this.settingsManager);
+        windowCapture.setApiManager(this.apiManager);
+        windowCapture.buildWindow();
+      };
       content.append(
         this.el("div", { className: "bm-container bm-sussy-row" }, allOn, allOff),
+        this.el("div", { className: "bm-container bm-sussy-row" }, capture),
         this.el("div", { className: "bm-container bm-sussy-row" }, repair),
         this.list,
         this.el("hr"),
@@ -5192,28 +5464,28 @@ Version: ${this.version}`, "readOnly": true }).buildElement().buildElement().add
       return `${coords}|${signature}|${tileBlob.size}:${fingerprint}`;
     }
     /** @returns {Blob|undefined} The cached tile (and marks it as recently used) */
-    get(key) {
-      const blob = this.entries.get(key);
+    get(key2) {
+      const blob = this.entries.get(key2);
       if (!blob) {
         this.misses++;
         return void 0;
       }
       this.hits++;
-      this.entries.delete(key);
-      this.entries.set(key, blob);
+      this.entries.delete(key2);
+      this.entries.set(key2, blob);
       return blob;
     }
     /** Stores a finished tile, evicting the least recently used ones when over budget. */
-    set(key, blob) {
+    set(key2, blob) {
       if (!blob || blob.size > this.maxBytes) {
         return;
       }
-      const old = this.entries.get(key);
+      const old = this.entries.get(key2);
       if (old) {
         this.bytes -= old.size;
-        this.entries.delete(key);
+        this.entries.delete(key2);
       }
-      this.entries.set(key, blob);
+      this.entries.set(key2, blob);
       this.bytes += blob.size;
       while (this.entries.size > this.maxEntries || this.bytes > this.maxBytes) {
         const oldestKey = this.entries.keys().next().value;
@@ -5519,9 +5791,9 @@ Tiles that are already on screen update when you move the map or reload the page
       if (entry) {
         entry["enabled"] = template.enabled;
       }
-      for (const [key, data] of this.finderData) {
+      for (const [key2, data] of this.finderData) {
         if (data.template === template) {
-          this.finderData.delete(key);
+          this.finderData.delete(key2);
         }
       }
       await __privateMethod(this, _TemplateManager_instances, storeTemplates_fn).call(this);
@@ -5650,12 +5922,12 @@ Tiles that are already on screen update when you move the map or reload the page
       const templates = JSON.parse(await GM.getValue("bmTemplates", "{}"))?.templates;
       console.log(templates);
       if (Object.keys(templates).length > 0) {
-        for (const [key, template] of Object.entries(templates)) {
-          if (templates.hasOwnProperty(key)) {
+        for (const [key2, template] of Object.entries(templates)) {
+          if (templates.hasOwnProperty(key2)) {
             await this.downloadTemplate(new Template({
               displayName: template.name,
-              sortID: key.split(" ")?.[0],
-              authorID: key.split(" ")?.[1],
+              sortID: key2.split(" ")?.[0],
+              authorID: key2.split(" ")?.[1],
               chunked: template.tiles
             }));
             await sleep(500);
@@ -5700,8 +5972,8 @@ Tiles that are already on screen update when you move the map or reload the page
       let absoluteSmallestY = Infinity;
       let absoluteLargestX = 0;
       let absoluteLargestY = 0;
-      templateTileKeysSorted.forEach((key, index) => {
-        const [tileX, tileY, pixelX, pixelY] = key.split(",").map(Number);
+      templateTileKeysSorted.forEach((key2, index) => {
+        const [tileX, tileY, pixelX, pixelY] = key2.split(",").map(Number);
         const tileImage = templateTilesImageSorted[index];
         const absoluteX = tileX * this.tileSize + pixelX;
         const absoluteY = tileY * this.tileSize + pixelY;
@@ -5721,8 +5993,8 @@ Canvas Width: ${canvasWidth}
 Canvas Height: ${canvasHeight}`);
       const canvas = new OffscreenCanvas(canvasWidth, canvasHeight);
       const context = canvas.getContext("2d");
-      templateTileKeysSorted.forEach((key, index) => {
-        const [tileX, tileY, pixelX, pixelY] = key.split(",").map(Number);
+      templateTileKeysSorted.forEach((key2, index) => {
+        const [tileX, tileY, pixelX, pixelY] = key2.split(",").map(Number);
         const tileImage = templateTilesImageSorted[index];
         const absoluteX = tileX * this.tileSize + pixelX;
         const absoluteY = tileY * this.tileSize + pixelY;
@@ -5832,9 +6104,9 @@ Canvas Height: ${canvasHeight}`);
      */
     getFinderList(kind, onlyTemplate = null) {
       const list = [];
-      for (const [key, entry] of this.finderData) {
+      for (const [key2, entry] of this.finderData) {
         if (!this.templatesArray.includes(entry.template)) {
-          this.finderData.delete(key);
+          this.finderData.delete(key2);
           continue;
         }
         if (entry.template.enabled === false || onlyTemplate && entry.template !== onlyTemplate) {
@@ -5882,8 +6154,8 @@ Canvas Height: ${canvasHeight}`);
    */
   nextSortID_fn = function() {
     const used = new Set(this.templatesArray.map((template) => template.sortID));
-    for (const key of Object.keys(this.templatesJSON?.templates ?? {})) {
-      used.add(Number(key.split(" ")[0]));
+    for (const key2 of Object.keys(this.templatesJSON?.templates ?? {})) {
+      used.add(Number(key2.split(" ")[0]));
     }
     let id = 0;
     while (used.has(id)) {
@@ -5900,7 +6172,7 @@ Canvas Height: ${canvasHeight}`);
   loadTemplate_fn = function(templateObject) {
     const pixelCount = {
       total: templateObject.pixels?.total,
-      colors: new Map(Object.entries(templateObject.pixels?.colors || {}).map(([key, value]) => [Number(key), value]))
+      colors: new Map(Object.entries(templateObject.pixels?.colors || {}).map(([key2, value]) => [Number(key2), value]))
     };
     const template = new Template({
       displayName: templateObject.displayName,
@@ -6123,7 +6395,7 @@ Use Blue Marble version ${scriptVersion} or load a new template.`);
             const displayName = templateValue.name || `Template ${sortID || ""}`;
             const pixelCount = {
               total: templateValue.pixels?.total,
-              colors: new Map(Object.entries(templateValue.pixels?.colors || {}).map(([key, value]) => [Number(key), value]))
+              colors: new Map(Object.entries(templateValue.pixels?.colors || {}).map(([key2, value]) => [Number(key2), value]))
             };
             const tilesbase64 = templateValue.tiles;
             const templateTiles = {};
@@ -6550,11 +6822,11 @@ Received: ${coordsTile?.[0]}, ${coordsTile?.[1]}, ${coordsPixel?.[0]}, ${coordsP
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || document.activeElement?.isContentEditable) {
         return;
       }
-      const key = event.key.toLowerCase();
-      if (!["w", "a", "s", "d"].includes(key) || keys.has(key)) {
+      const key2 = event.key.toLowerCase();
+      if (!["w", "a", "s", "d"].includes(key2) || keys.has(key2)) {
         return;
       }
-      keys.add(key);
+      keys.add(key2);
       if (!frame) {
         frame = requestAnimationFrame(() => loop(settingsManager));
       }
