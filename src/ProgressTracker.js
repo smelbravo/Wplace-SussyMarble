@@ -25,7 +25,7 @@ export default class ProgressTracker {
    */
   getStats() {
     let total = 0; let correct = 0; let tilesLoaded = 0; let tilesTotal = 0;
-    for (const template of this.templateManager?.templatesArray ?? []) {
+    for (const template of this.templateManager?.activeTemplates ?? []) {
       total += Number(template.pixelCount?.total) || 0;
       const correctObject = template.pixelCount?.correct ?? {};
       tilesLoaded += Object.keys(correctObject).length;

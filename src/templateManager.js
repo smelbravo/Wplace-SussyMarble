@@ -111,6 +111,12 @@ export default class TemplateManager {
     this.templateState = ''; // The state of the template ('blob', 'proccessing', 'template', etc.)
     /** An Array of Template classes @type {Array<Template>} */
     this.templatesArray = []; // All Template instnaces currently loaded (Template)
+    /** Resolves when the saved templates have finished loading at startup. Tiles requested before that wait for it,
+     * otherwise they would be drawn with only the templates that happened to be ready (and Wplace does not ask for them again). @type {Promise<void>} */
+    this.ready = Promise.resolve();
+    this.readyDone = true;
+    this.readyTimeoutMs = 20000; // Longest a tile waits for the saved templates
+    this.servedBeforeReady = false; // Did a tile have to be served before the templates were ready? (then the map is refreshed afterwards)
     this.templatesJSON = null; // All templates currently loaded (JSON)
     this.templatesShouldBeDrawn = true; // Should ALL templates be drawn to the canvas?
     this.templatePixelsCorrect = null; // An object where the keys are the tile coords, and the values are Maps (BM palette color IDs) containing the amount of correctly placed pixels for that tile in this template
@@ -167,7 +173,7 @@ export default class TemplateManager {
    * @param {Array<number, number, number, number>} coords - The coordinates of the top left corner of the template
    * @since 0.65.77
    */
-  async createTemplate(blob, name, coords) {
+  async createTemplate(blob, name, coords, pack = null) {
 
     // Creates the JSON object if it does not already exist
     if (!this.templatesJSON) {this.templatesJSON = await this.createJSON(); console.log(`Creating JSON...`);}
@@ -182,6 +188,8 @@ export default class TemplateManager {
       file: blob,
       coords: coords
     });
+    template.enabled = true; // Sussy Marble: every template can be switched on/off
+    template.pack = pack; // Sussy Marble: {url, name, version, image} when the template came from an alliance pack
 
     // Does the user want to skip transparent tiles while creating templates?
     const shouldSkipTransTiles = !this.settingsManager?.userSettings?.flags?.includes('hl-noSkip');
@@ -204,6 +212,7 @@ export default class TemplateManager {
       "name": template.displayName, // Display name of template
       "coords": coords.join(', '), // The coords of the template
       "enabled": true,
+      "pack": pack, // Where the template came from (alliance pack), or null
       "pixels": _pixels, // The total pixels in the template
       "tiles": templateTilesBuffers // Stores the chunked tile buffers
     };
@@ -215,10 +224,70 @@ export default class TemplateManager {
     console.log(Object.keys(this.templatesJSON.templates).length);
     console.log(this.templatesJSON);
     console.log(this.templatesArray);
-    console.log(JSON.stringify(this.templatesJSON));
 
     await this.#storeTemplates();
-    refreshTiles(); // Sussy Marble: draw the new template without moving the map
+    // Sussy Marble: draw the new template without moving the map. If the map cannot be reached, say what to do instead
+    // (Not awaited: waiting for the map would slow down creating many templates in a row)
+    refreshTiles().then((refreshed) => {
+      if (!refreshed) {this.windowMain.handleDisplayStatus(`Template saved!\nTiles that are already on screen update when you move the map or reload the page.`);}
+    });
+  }
+
+  /** @returns {Template[]} The templates that are switched on (the only ones that are drawn and counted)
+   * @since 1.1.0
+   */
+  get activeTemplates() {
+    return this.templatesArray.filter(template => template.enabled !== false);
+  }
+
+  /** Switches a template on or off and saves it.
+   * @param {Template} template - The template
+   * @param {boolean} enabled - `true` = drawn
+   * @since 1.1.0
+   */
+  async setTemplateEnabled(template, enabled) {
+    template.enabled = !!enabled;
+    const entry = this.templatesJSON?.templates?.[this.templateKey(template)];
+    if (entry) {entry['enabled'] = template.enabled;}
+    for (const [key, data] of this.finderData) {if (data.template === template) {this.finderData.delete(key);}}
+    await this.#storeTemplates();
+    refreshTiles();
+  }
+
+  /** Switches every template on or off at once (one save, one refresh).
+   * @param {boolean} enabled - `true` = drawn
+   * @since 1.1.0
+   */
+  async setAllTemplatesEnabled(enabled) {
+    for (const template of this.templatesArray) {
+      template.enabled = !!enabled;
+      const entry = this.templatesJSON?.templates?.[this.templateKey(template)];
+      if (entry) {entry['enabled'] = template.enabled;}
+    }
+    this.finderData.clear();
+    await this.#storeTemplates();
+    refreshTiles();
+  }
+
+  /** How one template is doing, based on the tiles that have been loaded so far.
+   * @param {Template} template - The template
+   * @returns {{total: number, correct: number, wrong: number, missing: number, tilesLoaded: number, tilesTotal: number}}
+   * @since 1.1.0
+   */
+  getTemplateStats(template) {
+    let wrong = 0;
+    let missing = 0;
+    for (const entry of this.finderData.values()) {
+      if (entry.template !== template) {continue;}
+      wrong += entry.counts?.wrong ?? 0;
+      missing += entry.counts?.missing ?? 0;
+    }
+    let correct = 0;
+    const correctByTile = template.pixelCount?.correct ?? {};
+    for (const colors of Object.values(correctByTile)) {for (const amount of colors.values()) {correct += Number(amount) || 0;}}
+    const total = template.pixelCount?.total ?? 0;
+    return {total: total, correct: Math.min(correct, total), wrong: wrong, missing: missing,
+      tilesLoaded: Object.keys(correctByTile).length, tilesTotal: Object.keys(template.chunked ?? {}).length};
   }
 
   /** @returns {number} The smallest sort ID that no loaded template uses
@@ -528,11 +597,17 @@ export default class TemplateManager {
     // Returns early if no templates should be drawn
     if (!this.templatesShouldBeDrawn) {return tileBlob;}
 
+    // Sussy Marble: wait until the saved templates are loaded (at most 20 s, in case something goes wrong)
+    if (!this.readyDone) {
+      await Promise.race([this.ready, new Promise(resolve => setTimeout(resolve, this.readyTimeoutMs))]);
+      if (!this.readyDone) {this.servedBeforeReady = true;}
+    }
+
     const flags = this.settingsManager?.userSettings?.flags ?? [];
 
     // Sussy Marble: the smart tile cache. Skipped if the user turned it off, or no template is on this tile.
     const coordsKey = tileCoords[0].toString().padStart(4, '0') + ',' + tileCoords[1].toString().padStart(4, '0');
-    const hasTemplateHere = this.templatesArray.some(template => Object.keys(template.chunked).some(tile => tile.startsWith(coordsKey)));
+    const hasTemplateHere = this.activeTemplates.some(template => Object.keys(template.chunked).some(tile => tile.startsWith(coordsKey)));
     if (!hasTemplateHere) {return tileBlob;} // Nothing to draw on this tile: skip the whole (expensive) pipeline
 
     const requestedAt = performance.now();
@@ -589,7 +664,7 @@ export default class TemplateManager {
   #renderSignature(flags) {
     const templates = this.templatesArray.map(template => {
       if (!this.templateUIDs.has(template)) {this.templateUIDs.set(template, ++this.templateUIDCounter);}
-      return `${this.templateUIDs.get(template)}.${template.sortID}.${Object.keys(template.chunked).length}`;
+      return `${this.templateUIDs.get(template)}.${template.sortID}.${Object.keys(template.chunked).length}.${(template.enabled !== false) ? 1 : 0}`;
     }).join('+');
     const filtered = Array.from(this.shouldFilterColor.entries()).filter(([, hidden]) => hidden).map(([id]) => id).sort((a, b) => a - b).join(',');
     const highlight = JSON.stringify(this.settingsManager?.userSettings?.highlight ?? '');
@@ -599,13 +674,15 @@ export default class TemplateManager {
 
   /** Returns the wrong or missing pixels of the templates that are currently loaded.
    * @param {'wrong'|'missing'} kind - Which list to return
+   * @param {Template} [onlyTemplate] - Only the pixels of this template
    * @returns {Array<{tileX: number, tileY: number, pixelX: number, pixelY: number, colorID: number}>}
    * @since 1.0.0
    */
-  getFinderList(kind) {
+  getFinderList(kind, onlyTemplate = null) {
     const list = [];
     for (const [key, entry] of this.finderData) {
       if (!this.templatesArray.includes(entry.template)) {this.finderData.delete(key); continue;} // Template was deleted
+      if ((entry.template.enabled === false) || (onlyTemplate && (entry.template !== onlyTemplate))) {continue;}
       const flat = entry[kind];
       for (let i = 0; i < flat.length; i += 3) {
         list.push({tileX: entry.tileX, tileY: entry.tileY, pixelX: flat[i], pixelY: flat[i + 1], colorID: flat[i + 2]});
@@ -631,7 +708,7 @@ export default class TemplateManager {
 
     console.log(`Searching for templates in tile: "${tileCoords}"`);
 
-    const templateArray = this.templatesArray; // Stores a copy for sorting
+    const templateArray = this.activeTemplates; // Sussy Marble: only the templates that are switched on (this is a copy, ready for sorting)
     console.log(templateArray);
 
     // Sorts the array of Template class instances. 0 = first = lowest draw priority
@@ -824,7 +901,8 @@ export default class TemplateManager {
           tileX: tileCoordsNumeric[0],
           tileY: tileCoordsNumeric[1],
           wrong: scan.wrong,
-          missing: scan.missing
+          missing: scan.missing,
+          counts: scan.counts // The real numbers (the lists above are capped per tile)
         });
 
         if (errorMapOn && scan.overlay) {
@@ -864,7 +942,13 @@ export default class TemplateManager {
     // If the passed in JSON is a Blue Marble template object...
     if (['BlueMarble', 'SussyMarble'].includes(json?.whoami)) {
       this.templatesJSON = json; // Sussy Marble: keep the stored templates, so adding/renaming/removing one never wipes the others
-      this.#parseBlueMarble(json); // ...parse the template object as Blue Marble
+      this.readyDone = false;
+      this.ready = this.#parseBlueMarble(json) // ...parse the template object as Blue Marble
+        .catch((error) => {console.warn('Could not load the saved templates:', error);})
+        .finally(() => {
+          this.readyDone = true;
+          if (this.servedBeforeReady) {this.servedBeforeReady = false; refreshTiles();} // Some tiles were drawn without them: redraw
+        });
     }
   }
 
@@ -960,24 +1044,23 @@ export default class TemplateManager {
   
             const actualTileSize = tileSize * drawMult;
   
-            for (const tile in tilesbase64) {
-              console.log(tile);
-              if (tilesbase64.hasOwnProperty(tile)) {
-                const encodedTemplateBase64 = tilesbase64[tile];
-                const templateUint8Array = base64ToUint8(encodedTemplateBase64); // Base 64 -> Uint8Array
-  
-                const templateBlob = new Blob([templateUint8Array], { type: "image/png" }); // Uint8Array -> Blob
-                const templateBitmap = await createImageBitmap(templateBlob) // Blob -> Bitmap
-                templateTiles[tile] = templateBitmap;
-  
-                // Converts to Uint32Array
-                const canvas = new OffscreenCanvas(actualTileSize, actualTileSize);
-                const context = canvas.getContext('2d', { willReadFrequently: true }); // Sussy Marble: read back right below
-                context.drawImage(templateBitmap, 0, 0);
-                const imageData = context.getImageData(0, 0, templateBitmap.width, templateBitmap.height);
-                templateTiles32[tile] = new Uint32Array(imageData.data.buffer);
-              }
-            }
+            // Sussy Marble: the tiles of a template are decoded in parallel, each on a canvas that is only as big as the tile
+            // (it used to be a full 3000x3000 canvas, 36 MB, for every single tile)
+            await Promise.all(Object.keys(tilesbase64 ?? {}).map(async (tile) => {
+              const encodedTemplateBase64 = tilesbase64[tile];
+              const templateUint8Array = base64ToUint8(encodedTemplateBase64); // Base 64 -> Uint8Array
+
+              const templateBlob = new Blob([templateUint8Array], { type: "image/png" }); // Uint8Array -> Blob
+              const templateBitmap = await createImageBitmap(templateBlob) // Blob -> Bitmap
+              templateTiles[tile] = templateBitmap;
+
+              // Converts to Uint32Array
+              const canvas = new OffscreenCanvas(templateBitmap.width, templateBitmap.height);
+              const context = canvas.getContext('2d', { willReadFrequently: true });
+              context.drawImage(templateBitmap, 0, 0);
+              const imageData = context.getImageData(0, 0, templateBitmap.width, templateBitmap.height);
+              templateTiles32[tile] = new Uint32Array(imageData.data.buffer);
+            }));
   
             // Creates a new Template class instance
             const template = new Template({
@@ -989,6 +1072,11 @@ export default class TemplateManager {
             template.pixelCount = pixelCount;
             template.chunked = templateTiles;
             template.chunked32 = templateTiles32;
+            // Sussy Marble: restore what the original left out
+            template.enabled = templateValue.enabled !== false;
+            template.pack = templateValue.pack ?? null;
+            const storedCoords = String(templateValue.coords ?? '').split(',').map(Number);
+            if ((storedCoords.length === 4) && storedCoords.every(Number.isFinite)) {template.coords = storedCoords;}
             
             templatesArray.push(template);
             console.log(templatesArray);

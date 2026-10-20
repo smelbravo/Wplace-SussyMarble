@@ -1,0 +1,17 @@
+{
+  "name": "Sussy Squad",
+  "version": 1,
+  "templates": [
+    {
+      "name": "Alliance logo",
+      "coords": [972, 785, 100, 100],
+      "image": "templates/alliance-logo.png"
+    },
+    {
+      "name": "Border wall",
+      "coords": [973, 785, 20, 480],
+      "image": "templates/border-wall.png",
+      "version": 2
+    }
+  ]
+}
