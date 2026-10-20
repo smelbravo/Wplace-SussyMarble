@@ -900,6 +900,10 @@ export default class SettingsManager extends WindowSettings {
           checkbox.checked = this.userSettings?.flags?.includes('nav-url');
           checkbox.onchange = (event) => this.toggleFlag('nav-url', event.target.checked);
         }).buildElement()
+        .addCheckbox({'textContent': 'Alliance pack: update it automatically when the page loads (after you loaded it once)'}, (instance, label, checkbox) => {
+          checkbox.checked = this.userSettings?.flags?.includes('pack-auto');
+          checkbox.onchange = (event) => this.toggleFlag('pack-auto', event.target.checked);
+        }).buildElement()
         .addP({'textContent': 'Diagnostics (if the page lags, press this and send me the text):', 'style': 'font-weight: 700;'}).buildElement()
         .addButton({'textContent': 'Show diagnostics'}, (instance, button) => {
           button.onclick = () => {

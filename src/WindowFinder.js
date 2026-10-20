@@ -71,7 +71,7 @@ export default class WindowFinder extends WindowBase {
 
     // Tell the user if the lists are incomplete because some tiles never loaded
     let loaded = 0; let total = 0;
-    for (const template of templateManager.templatesArray) {
+    for (const template of templateManager.activeTemplates) {
       loaded += Object.keys(template.pixelCount?.correct ?? {}).length;
       total += Object.keys(template.chunked ?? {}).length;
     }

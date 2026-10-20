@@ -849,7 +849,7 @@ export default class WindowFilter extends Overlay {
 
     // Sum the pixel totals across all templates.
     // If there is no total for a template, it defaults to zero
-    for (const template of this.templateManager.templatesArray) {
+    for (const template of this.templateManager.activeTemplates) {
 
       const total = template.pixelCount?.total ?? 0;
       this.allPixelsTotal += total ?? 0; // Sums the pixels placed as "total" per everything

@@ -38,6 +38,41 @@ export async function httpGetText(url, headers = {}) {
   return response.text();
 }
 
+/** Downloads a file as a Blob.
+ * Uses the userscript manager's cross-origin request when available (it is not blocked by the page's security rules), else `fetch`.
+ * @param {string} url - The URL to request
+ * @returns {Promise<Blob>} The file
+ * @since 1.1.0
+ */
+export async function httpGetBlob(url) {
+
+  /* global GM_xmlhttpRequest */
+  const request = (typeof GM !== 'undefined' && (GM['xmlHttpRequest'] || GM['xmlhttpRequest']))
+    || (typeof GM_xmlhttpRequest !== 'undefined' ? GM_xmlhttpRequest : null);
+
+  if (request) {
+    return new Promise((resolve, reject) => {
+      request({
+        method: 'GET',
+        url: url,
+        responseType: 'blob',
+        onload: (response) => {
+          if ((response.status < 200) || (response.status >= 300)) {reject(new Error(`HTTP ${response.status}`)); return;}
+          const body = response.response;
+          resolve(body instanceof Blob ? body : new Blob([body], {type: 'image/png'}));
+        },
+        onerror: (error) => reject(error),
+        ontimeout: () => reject(new Error('Request timed out')),
+        timeout: 30000
+      });
+    });
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {throw new Error(`HTTP ${response.status}`);}
+  return response.blob();
+}
+
 /** Reads a JSON value from userscript storage.
  * @param {string} key - Storage key
  * @param {*} fallback - Value returned when missing or corrupted

@@ -16,6 +16,8 @@ import ProgressTracker from './ProgressTracker.js';
 import { startKeyboardPan } from './keyboardPan.js';
 import { initMobileMode } from './mobileMode.js';
 import { startStallMeter } from './diagnostics.js';
+import { describeSummary, syncPack } from './packLoader.js';
+import { httpGetBlob, httpGetText } from './gm.js';
 
 const name = GM_info.script.name.toString(); // Name of userscript
 const version = GM_info.script.version.toString(); // Version of userscript
@@ -37,15 +39,26 @@ const injectionCode = () => {
   // Finds the MapLibre map instance and runs a small whitelist of camera commands on it.
   // Map discovery comes from the t-wy Userscripts fork (custom-improve): Wplace's own "My location" button keeps the
   // map in its Svelte click handler data, so no global prototype needs to be patched.
+  const sussyIsMap = (candidate) => !!candidate && (typeof candidate['jumpTo'] === 'function');
   const sussyGetMap = () => {
     try {
-      const candidates = [
-        window['bmmap'],
-        document.head?.['__bmmap'],
-        document.querySelector('.right-3>button')?.['__click']?.[3]?.['v']
-      ];
-      return candidates.find(map => map && (typeof map['jumpTo'] === 'function')) ?? null;
-    } catch (_) { return null; }
+      const direct = [window['bmmap'], document.head?.['__bmmap'], document.querySelector('.right-3>button')?.['__click']?.[3]?.['v']].find(sussyIsMap);
+      if (direct) {return direct;}
+
+      // Wplace's layout changes now and then. Svelte keeps the map inside the click handlers of the page's buttons,
+      // so look inside the first few levels of every button's handler data instead of trusting one fixed selector.
+      for (const button of document.querySelectorAll('button')) {
+        const handlers = button['__click'];
+        if (!handlers) {continue;}
+        const list = Array.isArray(handlers) ? handlers : [handlers];
+        for (const entry of list) {
+          for (const candidate of [entry, entry?.['v'], entry?.['value']]) {
+            if (sussyIsMap(candidate)) {window['bmmap'] = candidate; return candidate;}
+          }
+        }
+      }
+    } catch (_) { /* The map is optional: navigation falls back to URLs */ }
+    return null;
   };
 
   window.addEventListener('message', (event) => {
@@ -334,6 +347,19 @@ if (document.readyState === 'loading') {
   // Sussy Marble: progress bars (top of the screen + main window)
   const progressTracker = new ProgressTracker(templateManager, settingsManager, apiManager);
   progressTracker.start();
+  // Alliance pack: if the user asked for it, bring the templates up to date a few seconds after the page loads
+  const packURL = settingsManager.userSettings?.packURL;
+  if (packURL && settingsManager.userSettings?.flags?.includes('pack-auto')) {
+    setTimeout(async () => {
+      await templateManager.ready; // The saved templates must be loaded first, or they would be loaded twice
+      try {
+        const summary = await syncPack({templateManager, packURL, fetchText: httpGetText, fetchBlob: httpGetBlob});
+        windowMain.handleDisplayStatus(`Alliance pack: ${describeSummary(summary)}`);
+      } catch (error) {
+        windowMain.handleDisplayError(`Alliance pack: ${error?.message ?? error}`);
+      }
+    }, 3000);
+  }
   startStallMeter(); // Counts page freezes for the diagnostics report (Settings → Sussy Marble)
   initMobileMode(settingsManager, templateManager); // Mobile mode (auto-on for touch screens the first time)
   startKeyboardPan(settingsManager); // WASD panning (opt-in in Settings)

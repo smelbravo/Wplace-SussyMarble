@@ -1,0 +1,226 @@
+{
+  "name": "Sussy Squad",
+  "version": 1,
+  "templates": [
+    {
+      "name": "Sussy_Doubles",
+      "coords": [
+        972,
+        785,
+        440,
+        68
+      ],
+      "image": "templates/Sussy_Doubles.png"
+    },
+    {
+      "name": "Metamorfodase",
+      "coords": [
+        972,
+        785,
+        434,
+        270
+      ],
+      "image": "templates/Metamorfodase.png"
+    },
+    {
+      "name": "Militar_CUBO",
+      "coords": [
+        972,
+        785,
+        339,
+        223
+      ],
+      "image": "templates/Militar_CUBO.png"
+    },
+    {
+      "name": "smel",
+      "coords": [
+        972,
+        785,
+        339,
+        270
+      ],
+      "image": "templates/smel.png"
+    },
+    {
+      "name": "Ouvido_Metamorfds",
+      "coords": [
+        972,
+        785,
+        595,
+        68
+      ],
+      "image": "templates/Ouvido_Metamorfds.png"
+    },
+    {
+      "name": "Floyd_Lua",
+      "coords": [
+        972,
+        784,
+        329,
+        981
+      ],
+      "image": "templates/Floyd_Lua.png"
+    },
+    {
+      "name": "os_socios",
+      "coords": [
+        972,
+        784,
+        536,
+        938
+      ],
+      "image": "templates/os_socios.png"
+    },
+    {
+      "name": "Zelda_Sussy",
+      "coords": [
+        972,
+        785,
+        775,
+        68
+      ],
+      "image": "templates/Zelda_Sussy.png"
+    },
+    {
+      "name": "SS_Shirt",
+      "coords": [
+        972,
+        785,
+        775,
+        328
+      ],
+      "image": "templates/SS_Shirt.png"
+    },
+    {
+      "name": "Coelho_Sussy",
+      "coords": [
+        972,
+        784,
+        814,
+        988
+      ],
+      "image": "templates/Coelho_Sussy.png"
+    },
+    {
+      "name": "Skate_Leo_Sussy",
+      "coords": [
+        972,
+        785,
+        615,
+        439
+      ],
+      "image": "templates/Skate_Leo_Sussy.png"
+    },
+    {
+      "name": "smel_wh",
+      "coords": [
+        972,
+        785,
+        777,
+        439
+      ],
+      "image": "templates/smel_wh.png"
+    },
+    {
+      "name": "Moral_Sussy",
+      "coords": [
+        972,
+        785,
+        968,
+        439
+      ],
+      "image": "templates/Moral_Sussy.png"
+    },
+    {
+      "name": "Sussy_Champions",
+      "coords": [
+        972,
+        785,
+        581,
+        621
+      ],
+      "image": "templates/Sussy_Champions.png"
+    },
+    {
+      "name": "FoydMinion_Sussy",
+      "coords": [
+        972,
+        785,
+        362,
+        167
+      ],
+      "image": "templates/FoydMinion_Sussy.png"
+    },
+    {
+      "name": "GajoFato",
+      "coords": [
+        972,
+        784,
+        747,
+        988
+      ],
+      "image": "templates/GajoFato.png"
+    },
+    {
+      "name": "Bandeira_Sussy",
+      "coords": [
+        972,
+        785,
+        971,
+        727
+      ],
+      "image": "templates/Bandeira_Sussy.png"
+    },
+    {
+      "name": "WOW",
+      "coords": [
+        972,
+        785,
+        431,
+        231
+      ],
+      "image": "templates/WOW.png"
+    },
+    {
+      "name": "JP",
+      "coords": [
+        972,
+        785,
+        537,
+        232
+      ],
+      "image": "templates/JP.png"
+    },
+    {
+      "name": "CDS",
+      "coords": [
+        972,
+        785,
+        511,
+        238
+      ],
+      "image": "templates/CDS.png"
+    },
+    {
+      "name": "Hope_Sussy",
+      "coords": [
+        972,
+        785,
+        797,
+        804
+      ],
+      "image": "templates/Hope_Sussy.png"
+    },
+    {
+      "name": "SouthPark_Sussy",
+      "coords": [
+        972,
+        785,
+        202,
+        611
+      ],
+      "image": "templates/SouthPark_Sussy.png"
+    }
+  ]
+}

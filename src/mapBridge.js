@@ -64,11 +64,22 @@ export async function navigate(lat, lng, method = 'fly') {
 }
 
 let refreshTimer = null;
+let refreshResolve = null;
+let refreshPromise = null;
 /** Asks the map to re-request its tiles (so setting/colour/template changes show immediately).
- * Debounced, and silently does nothing if the map is not available. */
+ * Debounced: many calls close together become one request, and they all get the same answer.
+ * @returns {Promise<boolean>} `true` if the map handled it, `false` if it could not be reached
+ */
 export function refreshTiles() {
   clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => {mapCall('refreshTiles');}, 150);
+  if (!refreshPromise) {refreshPromise = new Promise((resolve) => {refreshResolve = resolve;});}
+  refreshTimer = setTimeout(async () => {
+    const resolve = refreshResolve;
+    refreshResolve = null;
+    refreshPromise = null;
+    resolve((await mapCall('refreshTiles')).ok);
+  }, 150);
+  return refreshPromise;
 }
 
 /** Sets the map zoom so one Wplace pixel covers `ratio` screen pixels (t-wy's formula).

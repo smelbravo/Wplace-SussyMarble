@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.1.0 (experimental)
+Working with many templates at once, built for alliances.
+
+**Bug fixes**
+- **Templates other than the main one only showed some of their pixels.** When the page loaded, the saved templates were read one by one while the map was already asking for tiles. Tiles requested during that time were drawn with only the templates that happened to be ready, and the map does not ask for them again. Tiles now wait (at most 20 s) until all saved templates are loaded. Reproduced in a real browser: the first tile used to come back with **0 of 6** templates, and now comes back with all of them.
+- **Saved templates lost their coordinates after a reload,** so "📍 go to corner" and "Template corner" did nothing. They are restored now.
+- Loading saved templates is up to 7x faster (20 templates: 729 ms → 108 ms): the tiles of a template load in parallel, each on a canvas as big as the tile instead of a full 3000x3000 one.
+- If the map cannot be reached to refresh itself after a change, the status box now says to move the map or reload. The map is also searched for in more places, because Wplace's layout changes.
+
+**New**
+- **Switch each template on or off** (checkbox in 📚). Hidden templates are not drawn or counted, and the choice is remembered. "All on" / "All off" buttons.
+- **Status of every template:** percentage done, wrong and missing pixels, and how many of its tiles have been loaded.
+- **🎯 Repair buttons:** fly to the nearest wrong pixel of one template, or of all of them.
+- **Alliance pack:** one JSON file lists all the alliance templates; one click loads them all, in everyone's script, at the same coordinates. Optional automatic update at page load. See `docs/ALLIANCE_PACK.md`.
+
+**Sussy Squad pack included:** `alliance-pack.json` and `templates/` hold the 22 alliance templates (638,142 pixels) with their coordinates. Four images (`Militar_CUBO`, `smel`, `WOW` and `Zelda_Sussy`, which was a JPG) had colors slightly off the Wplace palette and were aligned to it; the other 18 are unchanged. Checked in a real browser: all 636,690 visible template pixels are drawn correctly.
+
+**Measured (Chromium)**: 20 templates (450,000 pixels) on one tile render in ~275 ms, against ~170 ms for 1 template, so the number of templates barely matters; the number of tiles on screen does.
+
 ## 1.0.5
 - **Tampermonkey icon:** the installed script now shows the Sussy Squad symbol instead of the old red marble. The Standalone build had the old `Favicon.png` hard-wired as its icon. It now embeds `dist/assets/SussySquad-icon.png` (128 px), and the other builds point to the same file.
 
