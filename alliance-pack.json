@@ -222,5 +222,15 @@
       ],
       "image": "templates/SouthPark_Sussy.png"
     }
+    { 
+      "name": "FIFA_Sussy", 
+      "coords": [
+        972, 
+        785, 
+        297, 
+        68
+      ], 
+      "image": "templates/FIFA_Sussy.png" 
+    }
   ]
 }
